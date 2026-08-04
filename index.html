@@ -4,212 +4,163 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NLK Sparepart - Inventory Manager</title>
-  
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  
-  <!-- JS App Modules (Loaded BEFORE Alpine initializes) -->
   <script src="js/utils.js"></script>
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
-  
-  <!-- Alpine.js (Loaded AFTER app.js component is registered) -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
-
   <style>
     [x-cloak] { display: none !important; }
     input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type="number"] { -moz-appearance: textfield; }
     .sidebar-item.active { background: rgba(99, 102, 241, 0.15); color: #818cf8; border-left: 3px solid #6366f1; }
-    .sidebar-item { border-left: 3px solid transparent; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #020617; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
-    select option { background: #0f172a; color: #f1f5f9; }
-    .th-filter { font-weight: 400; font-size: 10px; }
-    .th-filter input { min-width: 60px; }
-    .col-filter-input { width: 100%; background: #0f172a; border: 1px solid #1e293b; color: #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
-    .col-filter-input:focus { outline: none; border-color: #6366f1; }
+    @media print {
+      body { background: white; color: black; }
+      aside, button, .no-print { display: none !important; }
+      main { padding: 0 !important; width: 100% !important; overflow: visible !important; }
+      .print-only { display: block !important; }
+      .bg-slate-900, .bg-slate-800 { background: white !important; border: 1px solid #ddd !important; }
+      .text-indigo-400, .text-cyan-400, .text-emerald-400 { color: black !important; font-weight: bold; }
+      .rounded-xl { border-radius: 0 !important; }
+    }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased" x-data="nlkApp" x-cloak>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased" x-data="nlkApp" x-init="init()" x-cloak>
 
 <div class="flex h-screen overflow-hidden">
 
   <!-- ========== SIDEBAR ========== -->
-  <aside :class="sidebarCollapsed ? 'w-16' : 'w-60'" class="bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300">
+  <aside :class="sidebarCollapsed ? 'w-16' : 'w-64'" class="bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300 no-print">
     <div class="p-4 border-b border-slate-800 flex items-center justify-between">
       <h1 :class="sidebarCollapsed ? 'hidden' : 'flex'" class="text-xl font-bold text-indigo-400 items-center gap-2">
-        <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center"><i class="fas fa-cube text-indigo-400"></i></div>
-        <span class="whitespace-nowrap">NLK Inventory</span>
+        <i class="fas fa-cube"></i> <span class="whitespace-nowrap">NLK Inventory</span>
       </h1>
-      <div x-show="sidebarCollapsed" class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center mx-auto"><i class="fas fa-cube text-indigo-400"></i></div>
+      <div x-show="sidebarCollapsed" class="mx-auto text-indigo-400"><i class="fas fa-cube text-xl"></i></div>
     </div>
-    <button @click="toggleSidebar()" class="mx-3 mt-2 flex items-center justify-center py-1.5 text-xs text-slate-400 hover:text-indigo-400 hover:bg-slate-800/60 rounded-lg transition border border-slate-800">
-      <i :class="sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'" class="text-xs"></i>
-      <span x-show="!sidebarCollapsed" class="ml-1">Sembunyikan Menu</span>
+    <button @click="toggleSidebar()" class="mx-3 mt-2 flex items-center justify-center py-1.5 text-xs text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition border border-slate-800">
+      <i :class="sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
     </button>
-    <nav class="flex-1 p-3 space-y-1">
-      <button @click="setPage('dashboard')"
-              :class="page === 'dashboard' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Dashboard' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
-        <i class="fas fa-chart-pie w-5 text-center"></i><span x-show="!sidebarCollapsed">Dashboard</span>
-      </button>
-      <button @click="setPage('inventory')"
-              :class="page === 'inventory' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Inventory' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
-        <i class="fas fa-box w-5 text-center"></i><span x-show="!sidebarCollapsed">Inventory</span>
-      </button>
-      <button @click="setPage('sales')"
-              :class="page === 'sales' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Penjualan' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
-        <i class="fas fa-receipt w-5 text-center"></i><span x-show="!sidebarCollapsed">Penjualan</span>
-      </button>
-      <button @click="setPage('po')"
-              :class="page === 'po' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Purchase Order' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
-        <i class="fas fa-truck w-5 text-center"></i><span x-show="!sidebarCollapsed">Purchase Order</span>
-      </button>
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <template x-for="item in [{id:'dashboard',label:'Dashboard',icon:'fa-chart-pie'},{id:'inventory',label:'Inventory',icon:'fa-box'},{id:'sales',label:'Penjualan',icon:'fa-receipt'},{id:'po',label:'Purchase Order',icon:'fa-truck'},{id:'reorder',label:'Reorder',icon:'fa-exclamation-circle'},{id:'laporan',label:'Laporan',icon:'fa-file-alt'}]">
+        <button @click="setPage(item.id)" :class="page === item.id ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition" :title="sidebarCollapsed ? item.label : ''" :style="sidebarCollapsed ? 'justify-content:center;padding:0' : ''">
+          <i :class="'fas '+item.icon+' w-5 text-center'"></i><span x-show="!sidebarCollapsed" x-text="item.label"></span>
+        </button>
+      </template>
     </nav>
-    <div class="p-3 space-y-1 border-t border-slate-800">
-      <button @click="setPage('analytics')"
-              :class="page === 'analytics' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Analitik' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
-        <i class="fas fa-chart-line w-5 text-center"></i><span x-show="!sidebarCollapsed">Analitik</span>
-      </button>
-      <button @click="setPage('settings')"
-              :class="page === 'settings' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              :title="sidebarCollapsed ? 'Pengaturan' : ''"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+    <div class="p-3 border-t border-slate-800">
+      <button @click="setPage('settings')" :class="page === 'settings' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition" :style="sidebarCollapsed ? 'justify-content:center;padding:0' : ''">
         <i class="fas fa-cog w-5 text-center"></i><span x-show="!sidebarCollapsed">Pengaturan</span>
       </button>
-    </div>
-    <div class="p-4 border-t border-slate-800 text-center">
-      <p x-show="!sidebarCollapsed" class="text-[9px] text-slate-500 tracking-wider">NLK SPAREPART &copy; 2026</p>
-      <p x-show="sidebarCollapsed" class="text-[9px] text-slate-600">NLK</p>
     </div>
   </aside>
 
   <!-- ========== MAIN CONTENT ========== -->
   <main class="flex-1 overflow-y-auto">
 
-    <!-- ===== DASHBOARD ===== -->
+    <!-- ===== DASHBOARD (Merged with Analytics) ===== -->
     <div x-show="page === 'dashboard'" class="p-6 space-y-6">
-      <div class="flex justify-between items-center mb-2">
-        <h2 class="text-2xl font-bold text-white">Dashboard</h2>
-        <span class="text-xs text-slate-400"><i class="far fa-calendar mr-1"></i><span x-text="fmtDate(new Date())"></span></span>
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-2xl font-bold text-white">Dashboard & Analitik</h2>
+          <p class="text-xs text-slate-500 mt-1">Performa <span class="capitalize" x-text="evalPeriod"></span> — <span x-text="currentMonthName"></span></p>
+        </div>
+        <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-1 no-print">
+          <template x-for="p in ['mingguan','bulanan','kuartal','semester','tahunan']">
+            <button @click="evalPeriod = p" :class="evalPeriod === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'" class="px-3 py-1 rounded-md text-xs font-medium transition-all capitalize" x-text="p"></button>
+          </template>
+        </div>
       </div>
 
+      <!-- KPI Cards -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Nilai Inventory</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Nilai Inventory</p>
           <p class="text-xl font-bold text-indigo-400 mt-1" x-text="fmtRp(stats.invValue)"></p>
         </div>
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total Terjual</p>
-          <p class="text-xl font-bold text-emerald-400 mt-1" x-text="stats.totalSold.toLocaleString('id-ID') + ' pcs'"></p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Omset <span class="capitalize" x-text="evalPeriod"></span></p>
+          <p class="text-xl font-bold text-cyan-400 mt-1" x-text="fmtRp(periodSummary({mingguan:7,bulanan:30,kuartal:90,semester:180,tahunan:365}[evalPeriod]).revenue)"></p>
         </div>
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Omset Penjualan</p>
-          <p class="text-xl font-bold text-cyan-400 mt-1" x-text="fmtRp(stats.revenue)"></p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Unit Terjual</p>
+          <p class="text-xl font-bold text-emerald-400 mt-1" x-text="periodSummary({mingguan:7,bulanan:30,kuartal:90,semester:180,tahunan:365}[evalPeriod]).qty.toLocaleString() + ' pcs'"></p>
         </div>
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">PO Aktif / Stok Rendah</p>
-          <p class="text-xl font-bold mt-1">
-            <span class="text-purple-400" x-text="stats.inTransit"></span>
-            <span class="text-slate-600"> / </span>
-            <span class="text-red-400" x-text="stats.lowStock"></span>
-          </p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stok Kritis</p>
+          <p class="text-xl font-bold text-red-400 mt-1" x-text="stats.lowStock"></p>
         </div>
       </div>
 
-      <!-- Alert: Critical Stock -->
-      <div x-show="criticalItems.length > 0" class="bg-slate-900 border border-red-500/30 rounded-xl p-5">
-        <h3 class="text-red-400 font-semibold mb-3 flex items-center text-sm">
-          <div class="w-6 h-6 bg-red-500/20 rounded flex items-center justify-center mr-2"><i class="fas fa-exclamation-triangle text-red-400 text-xs"></i></div>
-          <span x-text="criticalItems.length + ' Item Perlu Reorder Segera'"></span>
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          <template x-for="item in criticalItems.slice(0, 8)">
-            <div class="bg-slate-800/80 rounded-lg p-3 border border-red-500/20 hover:border-red-500/40 transition">
-              <div class="flex justify-between items-start mb-1">
-                <span class="font-medium text-sm text-slate-200" x-text="item.nama"></span>
-                <span class="text-xs font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded" x-text="item.stok + ' sisa'"></span>
-              </div>
-              <span class="text-[10px] text-slate-400 font-mono block" x-text="item.id"></span>
-              <div class="grid grid-cols-2 gap-1 mt-2 text-[11px]">
-                <div class="text-slate-400">Avg/Day: <span class="text-slate-200 font-medium" x-text="item._avgDaily.toFixed(1)"></span></div>
-                <div class="text-slate-400">Days Left: <span class="text-red-400 font-bold" x-text="item._daysLeft + 'h'"></span></div>
-                <div class="text-slate-400">Reorder At: <span class="text-yellow-400 font-medium" x-text="item._reorderPoint"></span></div>
-                <div class="text-slate-400">Order Qty: <span class="text-yellow-400 font-bold" x-text="item._reorderQty + ' pcs'"></span></div>
-              </div>
-              <button @click="savePOQuick(item)" class="w-full mt-2 text-[11px] bg-indigo-600/80 hover:bg-indigo-600 py-1.5 rounded transition font-medium text-white">
-                <i class="fas fa-cart-plus mr-1"></i>Buat PO Sekarang
-              </button>
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center"><i class="fas fa-shopping-cart mr-2 text-indigo-400"></i>Tren Unit Terjual</h3>
+          <div style="height: 250px; position: relative;"><canvas id="evalChart_salesQty"></canvas></div>
+        </div>
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center"><i class="fas fa-dollar-sign mr-2 text-cyan-400"></i>Tren Omset (IDR)</h3>
+          <div style="height: 250px; position: relative;"><canvas id="evalChart_salesRevenue"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Quick Summary -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Ringkasan Performa Lintas Periode</h3>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <template x-for="row in evalSummary()">
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-800 hover:border-indigo-500/30 transition">
+              <p class="text-[9px] text-slate-500 uppercase font-black" x-text="row.label"></p>
+              <p class="text-base font-bold text-slate-100 mt-1" x-text="row.qty + ' pcs'"></p>
+              <p class="text-[10px] text-emerald-400 font-medium" x-text="fmtRp(row.revenue)"></p>
             </div>
           </template>
         </div>
-        <p x-show="criticalItems.length > 8" class="text-center text-xs text-slate-400 mt-3">Menampilkan 8 dari <span x-text="criticalItems.length"></span> item — Lihat di Analitik</p>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Active PO -->
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center"><i class="fas fa-truck mr-2 text-purple-400"></i>PO Aktif</h3>
-          <div class="space-y-3">
-            <template x-for="po in activePOs">
-              <div class="bg-slate-800/80 rounded-lg p-3 border border-slate-800">
-                <div class="flex justify-between items-start mb-2">
-                  <div>
-                    <span class="font-mono text-xs text-indigo-400" x-text="po.id"></span>
-                    <span class="text-xs text-slate-300 ml-2" x-text="po.supplierName"></span>
-                  </div>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="poStatusColor(po.status)" x-text="poStatusLabel(po.status)"></span>
-                </div>
-                <div class="flex justify-between text-xs text-slate-400">
-                  <span>Est. Tiba: <span class="text-slate-200" x-text="fmtDate(po.estimasiTiba)"></span></span>
-                  <span x-text="po.items.reduce((s,i)=>s+i.qty,0) + ' pcs'"></span>
-                </div>
-                <div class="flex gap-1 mt-2" x-show="po.status !== 'arrived' && po.status !== 'cancelled'">
-                  <button @click="updatePO(po.id, 'in transit')" class="flex-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 py-1 rounded hover:bg-yellow-500/20 transition">In Transit</button>
-                  <button @click="updatePO(po.id, 'arrived')" class="flex-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-1 rounded hover:bg-emerald-500/20 transition">Arrived</button>
-                </div>
-              </div>
-            </template>
-            <p x-show="activePOs.length === 0" class="text-center text-slate-500 text-xs py-4">Tidak ada PO aktif</p>
-          </div>
-        </div>
-
         <!-- Top Moving -->
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center"><i class="fas fa-fire mr-2 text-orange-400"></i>Top Moving Items</h3>
+          <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center"><i class="fas fa-fire mr-2 text-orange-400"></i>Top Moving Items</h3>
           <div class="space-y-2">
             <template x-for="(item, idx) in topMoving">
-              <div class="flex items-center gap-3 bg-slate-800/80 rounded-lg p-3 border border-slate-800">
+              <div class="flex items-center gap-3 bg-slate-800/50 rounded-lg p-3 border border-slate-800">
                 <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold text-sm" x-text="idx + 1"></div>
-                <div class="flex-1">
-                  <span class="text-sm font-medium text-slate-200 block" x-text="item.nama"></span>
-                  <span class="text-[10px] text-slate-400 font-mono" x-text="item.sku"></span>
+                <div class="flex-1 overflow-hidden">
+                  <span class="text-sm font-medium text-slate-200 block truncate" x-text="item.nama"></span>
+                  <span class="text-[10px] text-slate-500 font-mono" x-text="item.sku"></span>
                 </div>
                 <div class="text-right">
                   <span class="text-sm font-bold text-cyan-400" x-text="item.qty"></span>
-                  <span class="text-[10px] text-slate-400 block">pcs/30d</span>
+                  <span class="text-[10px] text-slate-500 block uppercase">30 Hari</span>
                 </div>
               </div>
             </template>
-            <p x-show="!topMoving.length" class="text-center text-slate-500 text-xs py-4">Belum ada data penjualan</p>
+          </div>
+        </div>
+        <!-- Active PO -->
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center"><i class="fas fa-truck mr-2 text-purple-400"></i>Status PO Aktif</h3>
+          <div class="space-y-3">
+            <template x-for="po in activePOs.slice(0, 3)">
+              <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-800">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <p class="font-mono text-xs text-indigo-400" x-text="po.id"></p>
+                    <p class="text-xs text-slate-300 mt-1" x-text="po.supplierName"></p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase" :class="poStatusColor(po.status)" x-text="poStatusLabel(po.status)"></span>
+                </div>
+                <div class="flex justify-between text-[11px] text-slate-500 mt-2">
+                  <span>Estimasi: <span class="text-slate-300" x-text="fmtDate(po.estimasiTiba)"></span></span>
+                  <span class="font-bold" x-text="po.items.reduce((s,i)=>s+i.qty,0) + ' pcs'"></span>
+                </div>
+              </div>
+            </template>
+            <p x-show="activePOs.length === 0" class="text-center text-slate-500 text-xs py-4">Semua pengiriman sudah sampai</p>
           </div>
         </div>
       </div>
@@ -217,266 +168,256 @@
 
     <!-- ===== INVENTORY ===== -->
     <div x-show="page === 'inventory'" class="p-6 space-y-6">
-      <div class="flex justify-between items-center mb-2">
+      <div class="flex justify-between items-center">
         <h2 class="text-2xl font-bold text-white">Inventory Master</h2>
         <div class="flex gap-2">
-          <button @click="openModal('importCSV')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-            <i class="fas fa-file-import"></i> Import CSV
-          </button>
-          <button @click="openModal('inventory')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-            <i class="fas fa-plus"></i> Tambah Part
-          </button>
+          <button @click="openModal('importCSV')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2"><i class="fas fa-file-import"></i> Import</button>
+          <button @click="openModal('inventory')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2"><i class="fas fa-plus"></i> Tambah</button>
         </div>
       </div>
-
-      <div class="flex gap-3 items-center">
-        <div class="relative flex-1">
-          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-          <input type="text" x-model="searchQuery" placeholder="Cari nama, SKU, lokasi rak..." class="w-full bg-slate-900 border border-slate-800 pl-10 pr-4 py-2.5 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
-        </div>
-        <select x-model="selectedCategory" class="bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
-          <template x-for="c in categories">
-            <option :value="c" x-text="c === 'all' ? 'Semua Kategori' : c"></option>
-          </template>
+      <div class="flex gap-3">
+        <input type="text" x-model="searchQuery" placeholder="Cari nama, SKU, rak..." class="flex-1 bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
+        <select x-model="selectedCategory" class="bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
+          <template x-for="c in categories"><option :value="c" x-text="c === 'all' ? 'Semua Kategori' : c"></option></template>
         </select>
-        <span class="text-xs text-slate-400 whitespace-nowrap" x-text="filteredInventory.length + '/' + inventory.length + ' item'"></span>
       </div>
-
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th @click="sortBy('inv', 'id')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">SKU <i class="fas text-[8px]" :class="sortIcon('inv', 'id')"></i></div></th>
-                <th @click="sortBy('inv', 'nama')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Nama Part <i class="fas text-[8px]" :class="sortIcon('inv', 'nama')"></i></div></th>
-                <th @click="sortBy('inv', 'kategori')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Kategori <i class="fas text-[8px]" :class="sortIcon('inv', 'kategori')"></i></div></th>
-                <th @click="sortBy('inv', 'lokasiRak')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Rak <i class="fas text-[8px]" :class="sortIcon('inv', 'lokasiRak')"></i></div></th>
-                <th @click="sortBy('inv', 'stok')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Stok <i class="fas text-[8px]" :class="sortIcon('inv', 'stok')"></i></div></th>
-                <th @click="sortBy('inv', 'minStok')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Min <i class="fas text-[8px]" :class="sortIcon('inv', 'minStok')"></i></div></th>
-                <th @click="sortBy('inv', 'avgDaily')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Avg/Day <i class="fas text-[8px]" :class="sortIcon('inv', 'avgDaily')"></i></div></th>
-                <th @click="sortBy('inv', 'daysLeft')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Days Left <i class="fas text-[8px]" :class="sortIcon('inv', 'daysLeft')"></i></div></th>
-                <th @click="sortBy('inv', 'status')" class="text-center p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-center gap-1">Status <i class="fas text-[8px]" :class="sortIcon('inv', 'status')"></i></div></th>
-                <th class="text-center p-2 text-slate-400"><div class="th-filter">Aksi</div></th>
+                <th @click="sortBy('inv', 'id')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">SKU <i class="fas ml-1" :class="sortIcon('inv', 'id')"></i></th>
+                <th @click="sortBy('inv', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Nama <i class="fas ml-1" :class="sortIcon('inv', 'nama')"></i></th>
+                <th @click="sortBy('inv', 'kategori')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Kategori <i class="fas ml-1" :class="sortIcon('inv', 'kategori')"></i></th>
+                <th @click="sortBy('inv', 'lokasiRak')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Rak <i class="fas ml-1" :class="sortIcon('inv', 'lokasiRak')"></i></th>
+                <th @click="sortBy('inv', 'stok')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Stok <i class="fas ml-1" :class="sortIcon('inv', 'stok')"></i></th>
+                <th @click="sortBy('inv', 'status')" class="text-center p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Status <i class="fas ml-1" :class="sortIcon('inv', 'status')"></i></th>
+                <th class="p-3 text-center uppercase text-[10px] tracking-widest">Aksi</th>
               </tr>
             </thead>
             <tbody>
               <template x-for="item in filteredInventory" :key="item.id">
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/40 transition">
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
                   <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="item.id"></td>
                   <td class="p-3 font-medium text-slate-200" x-text="item.nama"></td>
                   <td class="p-3 text-slate-400 text-xs" x-text="item.kategori"></td>
-                  <td class="p-3 text-slate-400 text-xs" x-text="item.lokasiRak || '-'"></td>
-                  <td class="p-3 text-right font-bold text-sm" :class="itemAvg(item) > 0 && itemDaysLeft(item) <= 5 ? 'text-red-400' : 'text-slate-100'" x-text="item.stok"></td>
-                  <td class="p-3 text-right text-slate-400 text-xs" x-text="item.minStok"></td>
-                  <td class="p-3 text-right text-slate-400 text-xs" x-text="itemAvg(item).toFixed(1)"></td>
-                  <td class="p-3 text-right">
-                    <template x-if="itemAvg(item) > 0">
-                      <span class="text-xs" :class="itemDaysLeft(item) <= 5 ? 'text-red-400 font-bold' : itemDaysLeft(item) <= 15 ? 'text-yellow-400' : 'text-emerald-400'" x-text="itemDaysLeft(item) + 'h'"></span>
-                    </template>
-                    <span x-show="itemAvg(item) <= 0" class="text-xs text-slate-500">—</span>
-                  </td>
+                  <td class="p-3 text-slate-500 text-xs" x-text="item.lokasiRak || '-'"></td>
+                  <td class="p-3 text-right font-bold" x-text="item.stok"></td>
                   <td class="p-3 text-center">
                     <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="stockStatusBg(itemStatus(item)) + ' ' + stockStatusColor(itemStatus(item))" x-text="stockStatusLabel(itemStatus(item))"></span>
                   </td>
                   <td class="p-3 text-center">
-                    <button @click="openModal('partDetail', item)" class="text-slate-400 hover:text-indigo-400 mr-1.5 transition" title="Detail"><i class="fas fa-eye text-xs"></i></button>
-                    <button @click="openModal('inventory', item)" class="text-slate-400 hover:text-yellow-400 mr-1.5 transition" title="Edit"><i class="fas fa-pen text-xs"></i></button>
-                    <button @click="deletePart(item)" class="text-slate-400 hover:text-red-400 transition" title="Hapus"><i class="fas fa-trash text-xs"></i></button>
+                    <button @click="openModal('inventory', item)" class="text-slate-500 hover:text-yellow-400 mr-2"><i class="fas fa-pen text-xs"></i></button>
+                    <button @click="deletePart(item)" class="text-slate-500 hover:text-red-400"><i class="fas fa-trash text-xs"></i></button>
                   </td>
                 </tr>
               </template>
-              <tr x-show="!filteredInventory.length">
-                <td colspan="10" class="py-12 text-center text-slate-500"><i class="fas fa-box-open text-3xl mb-2 block opacity-30"></i>Tidak ada data</td>
-              </tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- ===== SALES ===== -->
+    <!-- ===== PENJUALAN ===== -->
     <div x-show="page === 'sales'" class="p-6 space-y-6">
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-2xl font-bold text-white">Riwayat Penjualan</h2>
-        <button @click="openModal('sales')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-          <i class="fas fa-plus"></i> Tambah Penjualan
-        </button>
+        <button @click="openModal('sales')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2"><i class="fas fa-plus"></i> Tambah Jual</button>
       </div>
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-800/80 border-b border-slate-800">
-              <tr>
-                <th @click="sortBy('sales', 'tanggal')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Tanggal <i class="fas text-[8px]" :class="sortIcon('sales', 'tanggal')"></i></span></th>
-                <th @click="sortBy('sales', 'sku')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">SKU <i class="fas text-[8px]" :class="sortIcon('sales', 'sku')"></i></span></th>
-                <th @click="sortBy('sales', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Nama <i class="fas text-[8px]" :class="sortIcon('sales', 'nama')"></i></span></th>
-                <th @click="sortBy('sales', 'jumlah')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Qty <i class="fas text-[8px]" :class="sortIcon('sales', 'jumlah')"></i></span></th>
-                <th @click="sortBy('sales', 'hargaJual')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Harga/Unit <i class="fas text-[8px]" :class="sortIcon('sales', 'hargaJual')"></i></span></th>
-                <th @click="sortBy('sales', 'total')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total <i class="fas text-[8px]" :class="sortIcon('sales', 'total')"></i></span></th>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-800/80 border-b border-slate-800">
+            <tr>
+              <th @click="sortBy('sales', 'tanggal')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Tanggal <i class="fas ml-1" :class="sortIcon('sales', 'tanggal')"></i></th>
+              <th @click="sortBy('sales', 'sku')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">SKU <i class="fas ml-1" :class="sortIcon('sales', 'sku')"></i></th>
+              <th @click="sortBy('sales', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Nama <i class="fas ml-1" :class="sortIcon('sales', 'nama')"></i></th>
+              <th @click="sortBy('sales', 'jumlah')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Qty <i class="fas ml-1" :class="sortIcon('sales', 'jumlah')"></i></th>
+              <th @click="sortBy('sales', 'total')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Total <i class="fas ml-1" :class="sortIcon('sales', 'total')"></i></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="s in sortedSales.slice(0, 100)">
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
+                <td class="p-3 text-xs text-slate-300" x-text="fmtDate(s.tanggal)"></td>
+                <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="s.sku"></td>
+                <td class="p-3 text-slate-200" x-text="s.nama"></td>
+                <td class="p-3 text-right" x-text="s.jumlah"></td>
+                <td class="p-3 text-right font-bold text-emerald-400" x-text="fmtRp(s.jumlah * s.hargaJual)"></td>
               </tr>
-            </thead>
-            <tbody>
-              <template x-for="s in sortedSales.slice(0, 100)">
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
-                  <td class="p-3 text-xs text-slate-300" x-text="fmtDate(s.tanggal)"></td>
-                  <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="s.sku"></td>
-                  <td class="p-3 text-slate-200" x-text="s.nama"></td>
-                  <td class="p-3 text-right text-slate-200" x-text="s.jumlah"></td>
-                  <td class="p-3 text-right text-slate-400 text-xs" x-text="fmtRp(s.hargaJual)"></td>
-                  <td class="p-3 text-right font-bold text-emerald-400" x-text="fmtRp(s.jumlah * s.hargaJual)"></td>
-                </tr>
-              </template>
-              <tr x-show="!sales.length">
-                <td colspan="6" class="py-12 text-center text-slate-500"><i class="fas fa-receipt text-3xl mb-2 block opacity-30"></i>Belum ada penjualan</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            </template>
+          </tbody>
+        </table>
       </div>
-      <p x-show="sales.length > 50" class="text-center text-xs text-slate-500">Menampilkan 50 dari <span x-text="sales.length"></span> transaksi</p>
     </div>
 
     <!-- ===== PURCHASE ORDER ===== -->
     <div x-show="page === 'po'" class="p-6 space-y-6">
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-2xl font-bold text-white">Purchase Orders</h2>
-        <button @click="openModal('po')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-          <i class="fas fa-plus"></i> Buat PO
-        </button>
+        <button @click="openModal('po')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2"><i class="fas fa-plus"></i> Buat PO</button>
       </div>
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-800/80 border-b border-slate-800">
-              <tr>
-                <th @click="sortBy('po', 'id')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">PO No <i class="fas text-[8px]" :class="sortIcon('po', 'id')"></i></span></th>
-                <th @click="sortBy('po', 'tanggalOrder')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Tanggal <i class="fas text-[8px]" :class="sortIcon('po', 'tanggalOrder')"></i></span></th>
-                <th @click="sortBy('po', 'supplierName')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Supplier <i class="fas text-[8px]" :class="sortIcon('po', 'supplierName')"></i></span></th>
-                <th @click="sortBy('po', 'status')" class="text-center p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-center gap-1">Status <i class="fas text-[8px]" :class="sortIcon('po', 'status')"></i></span></th>
-                <th @click="sortBy('po', 'estimasiTiba')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Est. Tiba <i class="fas text-[8px]" :class="sortIcon('po', 'estimasiTiba')"></i></span></th>
-                <th @click="sortBy('po', 'totalQty')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total Qty <i class="fas text-[8px]" :class="sortIcon('po', 'totalQty')"></i></span></th>
-                <th @click="sortBy('po', 'totalCost')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total (IDR) <i class="fas text-[8px]" :class="sortIcon('po', 'totalCost')"></i></span></th>
-                <th class="text-center p-3 text-slate-400"><span class="text-[10px] uppercase">Action</span></th>
+        <table class="w-full text-sm">
+          <thead class="bg-slate-800/80 border-b border-slate-800">
+            <tr>
+              <th @click="sortBy('po', 'id')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">PO No <i class="fas ml-1" :class="sortIcon('po', 'id')"></i></th>
+              <th @click="sortBy('po', 'tanggalOrder')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">Tanggal <i class="fas ml-1" :class="sortIcon('po', 'tanggalOrder')"></i></th>
+              <th @click="sortBy('po', 'supplierName')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">Supplier <i class="fas ml-1" :class="sortIcon('po', 'supplierName')"></i></th>
+              <th @click="sortBy('po', 'status')" class="text-center p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">Status <i class="fas ml-1" :class="sortIcon('po', 'status')"></i></th>
+              <th @click="sortBy('po', 'totalQty')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">Qty <i class="fas ml-1" :class="sortIcon('po', 'totalQty')"></i></th>
+              <th @click="sortBy('po', 'totalCost')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px]">Total (IDR) <i class="fas ml-1" :class="sortIcon('po', 'totalCost')"></i></th>
+              <th class="p-3 text-center uppercase text-[10px]">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="po in sortedPOs">
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
+                <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="po.id"></td>
+                <td class="p-3 text-xs text-slate-300" x-text="fmtDate(po.tanggalOrder)"></td>
+                <td class="p-3 text-slate-200" x-text="po.supplierName"></td>
+                <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="poStatusColor(po.status)" x-text="poStatusLabel(po.status)"></span></td>
+                <td class="p-3 text-right" x-text="po.items.reduce((s,i)=>s+i.qty,0)"></td>
+                <td class="p-3 text-right text-xs text-slate-300" x-text="fmtRp(po.items.reduce((s,i)=>s+i.qty*i.hargaBeliCNY,0) * (settings.kursCNYtoIDR||16500))"></td>
+                <td class="p-3 text-center">
+                  <template x-if="po.status !== 'arrived' && po.status !== 'cancelled'">
+                    <select @change="updatePO(po.id, $event.target.value); $event.target.value=''" class="text-[10px] bg-slate-800 border border-slate-700 rounded px-1 focus:outline-none focus:border-indigo-500">
+                      <option value="" disabled selected>Status</option>
+                      <option value="shipped">Shipped</option><option value="in transit">In Transit</option><option value="arrived">Arrived</option><option value="cancelled">Cancelled</option>
+                    </select>
+                  </template>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              <template x-for="po in sortedPOs">
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
-                  <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="po.id"></td>
-                  <td class="p-3 text-xs text-slate-300" x-text="fmtDate(po.tanggalOrder)"></td>
-                  <td class="p-3 text-slate-200" x-text="po.supplierName"></td>
-                  <td class="p-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="poStatusColor(po.status)" x-text="poStatusLabel(po.status)"></span>
-                  </td>
-                  <td class="p-3 text-right text-xs text-slate-300" x-text="fmtDate(po.estimasiTiba)"></td>
-                  <td class="p-3 text-right text-slate-200" x-text="po.items.reduce((s,i)=>s+i.qty,0)"></td>
-                  <td class="p-3 text-right text-slate-300 text-xs" x-text="fmtRp(po.items.reduce((s,i)=>s+i.qty*(i.hargaBeliCNY||0),0) * (settings.kursCNYtoIDR||16500))"></td>
-                  <td class="p-3 text-center">
-                    <template x-if="po.status !== 'arrived' && po.status !== 'cancelled'">
-                      <select @change="updatePO(po.id, $event.target.value); $event.target.value=''" class="text-xs bg-slate-800 border border-slate-700 text-slate-200 rounded p-1 focus:outline-none focus:border-indigo-500">
-                        <option value="" disabled selected>Ubah Status</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="in transit">In Transit</option>
-                        <option value="arrived">Arrived</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </template>
-                    <span x-show="po.status === 'arrived' || po.status === 'cancelled'" class="text-xs text-slate-500">—</span>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="!pos.length">
-                <td colspan="8" class="py-12 text-center text-slate-500"><i class="fas fa-truck text-3xl mb-2 block opacity-30"></i>Belum ada PO</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            </template>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- ===== ANALYTICS ===== -->
-    <div x-show="page === 'analytics'" class="p-6 space-y-6">
-      <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-white">Grafik & Analitik</h2>
-        <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-1">
-          <template x-for="p in ['mingguan','bulanan','kuartal','semester','tahunan']">
-            <button @click="evalPeriod = p"
-                    :class="evalPeriod === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-3 py-1 rounded-md text-xs font-medium transition-all capitalize"
-                    x-text="p"></button>
-          </template>
+    <!-- ===== REORDER (Separate Page) ===== -->
+    <div x-show="page === 'reorder'" class="p-6 space-y-6">
+      <div class="flex justify-between items-center mb-2">
+        <div>
+          <h2 class="text-2xl font-bold text-white">Reorder Management</h2>
+          <p class="text-xs text-slate-500 mt-1">Daftar item yang memerlukan pengadaan barang</p>
+        </div>
+        <div class="flex gap-2">
+           <select x-model="selectedCategory" class="bg-slate-900 border border-slate-800 p-2 py-1.5 rounded-lg text-xs focus:outline-none focus:border-indigo-500">
+             <template x-for="c in categories"><option :value="c" x-text="c === 'all' ? 'Semua Kategori' : c"></option></template>
+           </select>
+        </div>
+      </div>
+      <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-800/80 border-b border-slate-800 text-[10px] text-slate-400 uppercase tracking-widest">
+            <tr>
+              <th @click="sortBy('reorder', 'id')" class="text-left p-3 cursor-pointer hover:text-indigo-400">SKU <i class="fas ml-1" :class="sortIcon('reorder', 'id')"></i></th>
+              <th @click="sortBy('reorder', 'nama')" class="text-left p-3 cursor-pointer hover:text-indigo-400">Nama <i class="fas ml-1" :class="sortIcon('reorder', 'nama')"></i></th>
+              <th @click="sortBy('reorder', 'stok')" class="text-right p-3 cursor-pointer hover:text-indigo-400">Stok <i class="fas ml-1" :class="sortIcon('reorder', 'stok')"></i></th>
+              <th @click="sortBy('reorder', 'avg')" class="text-right p-3 cursor-pointer hover:text-indigo-400">Avg/Day <i class="fas ml-1" :class="sortIcon('reorder', 'avg')"></i></th>
+              <th @click="sortBy('reorder', 'days')" class="text-right p-3 cursor-pointer hover:text-indigo-400">Sisa Hari <i class="fas ml-1" :class="sortIcon('reorder', 'days')"></i></th>
+              <th @click="sortBy('reorder', 'rp')" class="text-right p-3 cursor-pointer hover:text-indigo-400">Reorder Pt <i class="fas ml-1" :class="sortIcon('reorder', 'rp')"></i></th>
+              <th @click="sortBy('reorder', 'rq')" class="text-right p-3 cursor-pointer hover:text-indigo-400">ORDER QTY <i class="fas ml-1" :class="sortIcon('reorder', 'rq')"></i></th>
+              <th class="p-3 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="item in reorderList.filter(i => (selectedCategory==='all' || i.kategori===selectedCategory) && (i.rq > 0 || i.stat === 'critical'))">
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
+                <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="item.id"></td>
+                <td class="p-3 font-medium text-slate-200 truncate max-w-[200px]" x-text="item.nama"></td>
+                <td class="p-3 text-right font-bold" :class="item.stat==='critical'?'text-red-400':''" x-text="item.stok"></td>
+                <td class="p-3 text-right text-slate-400 text-xs" x-text="item.avg.toFixed(1)"></td>
+                <td class="p-3 text-right text-xs" :class="item.days <= 7 ? 'text-red-400 font-bold' : 'text-yellow-400'" x-text="item.avg > 0 ? item.days + ' hari' : '—'"></td>
+                <td class="p-3 text-right text-slate-500" x-text="item.rp"></td>
+                <td class="p-3 text-right text-yellow-400 font-bold" x-text="item.rq + ' pcs'"></td>
+                <td class="p-3 text-center"><button @click="savePOQuick(item)" class="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded transition"><i class="fas fa-plus mr-1"></i>Buat PO</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== LAPORAN (Executive Report) ===== -->
+    <div x-show="page === 'laporan'" class="p-6 space-y-6">
+      <div class="flex justify-between items-center no-print">
+        <div>
+          <h2 class="text-2xl font-bold text-white">Executive Report</h2>
+          <p class="text-xs text-slate-500 mt-1">Laporan ringkas untuk pimpinan & supervisor</p>
+        </div>
+        <div class="flex gap-2">
+          <select x-model="reportPeriod" class="bg-slate-900 border border-slate-800 p-2 py-1.5 rounded-lg text-xs focus:outline-none focus:border-indigo-500">
+            <option value="mingguan">Mingguan</option><option value="bulanan">Bulanan</option><option value="kuartal">Kuartal</option><option value="semester">Semester</option><option value="tahunan">Tahunan</option>
+          </select>
+          <button @click="exportCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-700 transition"><i class="fas fa-file-csv mr-1"></i> CSV</button>
+          <button @click="exportPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition"><i class="fas fa-file-pdf mr-1"></i> PDF / Cetak</button>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center">
-            <i class="fas fa-shopping-cart mr-2 text-indigo-400"></i>Tren Penjualan (Qty)
-          </h3>
-          <div style="position: relative; height: 260px; width: 100%;">
-            <canvas id="evalChart_salesQty"></canvas>
-          </div>
+      <!-- Report Content -->
+      <div id="printArea" class="space-y-6">
+        <div class="text-center py-4 border-b border-slate-800 print-only hidden">
+          <h1 class="text-2xl font-bold">LAPORAN INVENTORY NLK SPAREPART</h1>
+          <p class="text-sm text-slate-500 uppercase tracking-widest mt-1">Periode: <span x-text="reportData().periodLabel"></span> — <span x-text="reportData().date"></span></p>
         </div>
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center">
-            <i class="fas fa-dollar-sign mr-2 text-cyan-400"></i>Tren Omset (IDR)
-          </h3>
-          <div style="position: relative; height: 260px; width: 100%;">
-            <canvas id="evalChart_salesRevenue"></canvas>
-          </div>
-        </div>
-      </div>
 
-      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-        <h3 class="text-sm font-semibold text-slate-300 mb-4">Ringkasan Performa</h3>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <template x-for="row in evalSummary()">
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-800">
-              <p class="text-[10px] text-slate-500 uppercase font-bold" x-text="row.label"></p>
-              <p class="text-lg font-bold text-indigo-400" x-text="row.qty + ' pcs'"></p>
-              <p class="text-[10px] text-slate-400 mt-1 truncate" x-text="'Top: ' + row.bestNama"></p>
-              <p class="text-[11px] text-emerald-400 font-medium mt-1" x-text="fmtRp(row.revenue)"></p>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- KPI -->
+          <div class="lg:col-span-2 grid grid-cols-2 gap-4">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Omset</p>
+              <p class="text-2xl font-black text-emerald-400 mt-1" x-text="fmtRp(reportData().totalRevenue)"></p>
             </div>
-          </template>
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Qty Terjual</p>
+              <p class="text-2xl font-black text-indigo-400 mt-1" x-text="reportData().totalSold.toLocaleString() + ' pcs'"></p>
+            </div>
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Nilai Inventory</p>
+              <p class="text-2xl font-black text-cyan-400 mt-1" x-text="fmtRp(reportData().invValue)"></p>
+            </div>
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Item Stok Rendah</p>
+              <p class="text-2xl font-black text-red-400 mt-1" x-text="reportData().critical + ' item'"></p>
+            </div>
+          </div>
+          <!-- Donut Health -->
+          <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col items-center">
+            <h3 class="text-xs font-bold text-slate-500 uppercase self-start mb-4">Kesehatan Stok</h3>
+            <div style="height: 180px; width: 100%;"><canvas id="reportDonut"></canvas></div>
+          </div>
         </div>
-      </div>
 
-      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-        <h3 class="text-sm font-semibold text-slate-300 mb-3">Reorder Forecast (Perlu Order)</h3>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-800/80 border-b border-slate-800">
-              <tr>
-                <th class="text-left p-3 text-[10px] text-slate-400 uppercase">SKU</th>
-                <th class="text-left p-3 text-[10px] text-slate-400 uppercase">Nama</th>
-                <th class="text-right p-3 text-[10px] text-slate-400 uppercase">Stok</th>
-                <th class="text-right p-3 text-[10px] text-slate-400 uppercase">Avg/Day</th>
-                <th class="text-right p-3 text-[10px] text-slate-400 uppercase">Days Left</th>
-                <th class="text-right p-3 text-[10px] text-slate-400 uppercase">Reorder Pt</th>
-                <th class="text-right p-3 text-[10px] text-slate-400 uppercase">ORDER QTY</th>
-                <th class="text-center p-3 text-[10px] text-slate-400 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="item in inventory.filter(i => itemReorderQty(i) > 0 || itemStatus(i) === 'critical').slice().sort((a,b) => itemReorderQty(b) - itemReorderQty(a))">
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
-                  <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="item.id"></td>
-                  <td class="p-3 text-slate-200" x-text="item.nama"></td>
-                  <td class="p-3 text-right font-bold" :class="itemStatus(item)==='critical'?'text-red-400':'text-slate-200'" x-text="item.stok"></td>
-                  <td class="p-3 text-right text-slate-400 text-xs" x-text="itemAvg(item).toFixed(1)"></td>
-                  <td class="p-3 text-right text-xs" :class="itemAvg(item)>0 && itemDaysLeft(item) <= 5 ? 'text-red-400 font-bold' : 'text-yellow-400'" x-text="itemAvg(item)>0 ? itemDaysLeft(item) + ' hari' : '—'"></td>
-                  <td class="p-3 text-right text-slate-400" x-text="itemReorderPoint(item)"></td>
-                  <td class="p-3 text-right text-yellow-400 font-bold" x-text="itemReorderQty(item) + ' pcs'"></td>
-                  <td class="p-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="stockStatusBg(itemStatus(item)) + ' ' + stockStatusColor(itemStatus(item))" x-text="stockStatusLabel(itemStatus(item))"></span>
-                  </td>
-                </tr>
-              </template>
-              <tr x-show="inventory.filter(i => itemReorderQty(i) > 0 || itemStatus(i) === 'critical').length === 0">
-                <td colspan="8" class="py-12 text-center text-emerald-400/50"><i class="fas fa-check-circle text-3xl mb-2 block"></i>Semua item stok aman</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Top 5 & Reorder -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+            <h3 class="text-sm font-bold text-indigo-400 mb-4 uppercase tracking-widest">Top 5 Performa Produk</h3>
+            <table class="w-full text-xs">
+              <thead><tr class="text-left text-slate-500 border-b border-slate-800"><th class="pb-2">Nama</th><th class="pb-2 text-right">Qty</th><th class="pb-2 text-right">Omset</th></tr></thead>
+              <tbody>
+                <template x-for="r in reportData().top5">
+                  <tr class="border-b border-slate-800/50"><td class="py-2 text-slate-200" x-text="r.nama"></td><td class="py-2 text-right font-bold" x-text="r.q"></td><td class="py-2 text-right text-emerald-400" x-text="fmtRp(r.r)"></td></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+            <h3 class="text-sm font-bold text-red-400 mb-4 uppercase tracking-widest">Urgent Reorder Alert</h3>
+            <table class="w-full text-xs">
+              <thead><tr class="text-left text-slate-500 border-b border-slate-800"><th class="pb-2">SKU</th><th class="pb-2">Stok</th><th class="pb-2">Point</th><th class="pb-2 text-right">QTY ORDER</th></tr></thead>
+              <tbody>
+                <template x-for="r in reportData().reorder">
+                  <tr class="border-b border-slate-800/50"><td class="py-2 text-indigo-400 font-mono" x-text="r.id"></td><td class="py-2 text-red-400 font-bold" x-text="r.s"></td><td class="py-2 text-slate-400" x-text="r.rp"></td><td class="py-2 text-right text-yellow-400 font-black" x-text="r.rq"></td></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Trend Chart -->
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-bold text-cyan-400 mb-4 uppercase tracking-widest">Grafik Tren Penjualan</h3>
+          <div style="height: 250px; position: relative;"><canvas id="reportTrend"></canvas></div>
         </div>
       </div>
     </div>
@@ -514,19 +455,6 @@
           </div>
         </div>
       </div>
-      <div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
-        <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center"><i class="fas fa-building mr-2 text-indigo-400"></i>Supplier</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <template x-for="s in suppliers">
-            <div class="bg-slate-800/80 rounded-lg p-4 border border-slate-800">
-              <span class="font-semibold text-sm text-slate-200 block" x-text="s.nama"></span>
-              <span class="text-xs text-slate-400" x-text="s.negara"></span>
-              <span class="text-xs text-slate-400 block mt-1" x-text="s.kontak"></span>
-              <span class="text-xs text-indigo-400 font-medium mt-2 block">Lead Time: <span x-text="s.leadTimeDefault + ' hari'"></span></span>
-            </div>
-          </template>
-        </div>
-      </div>
     </div>
 
   </main>
@@ -535,8 +463,8 @@
 <!-- ========== MODALS ========== -->
 
 <!-- Inventory Modal -->
-<div x-show="showModal.inventory" @click.self="closeModal('inventory')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" x-cloak>
-  <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-xl p-6">
+<div x-show="showModal.inventory" @click.self="closeModal('inventory')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 no-print" x-cloak>
+  <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-xl p-6 shadow-2xl">
     <h3 class="text-lg font-bold mb-5 text-white" x-text="form.inventory.id ? 'Edit Part' : 'Tambah Part Baru'"></h3>
     <div class="grid grid-cols-2 gap-4">
       <div class="col-span-2"><label class="text-xs text-slate-400 mb-1 block">Nama Part *</label><input type="text" x-model="form.inventory.nama" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
@@ -557,7 +485,7 @@
 </div>
 
 <!-- Sales Modal -->
-<div x-show="showModal.sales" @click.self="closeModal('sales')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" x-cloak>
+<div x-show="showModal.sales" @click.self="closeModal('sales')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 no-print" x-cloak>
   <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-md p-6">
     <h3 class="text-lg font-bold mb-5 text-white">Tambah Penjualan</h3>
     <div class="space-y-4">
@@ -578,10 +506,10 @@
 </div>
 
 <!-- Import CSV Modal -->
-<div x-show="showModal.importCSV" @click.self="closeModal('importCSV')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" x-cloak>
+<div x-show="showModal.importCSV" @click.self="closeModal('importCSV')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 no-print" x-cloak>
   <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-2xl p-6">
     <h3 class="text-lg font-bold mb-1 text-white flex items-center gap-2"><i class="fas fa-file-import text-emerald-400"></i> Import Massal Inventory</h3>
-    <p class="text-xs text-slate-400 mb-4">Format CSV: <code class="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300">id,nama,kategori,stok,minStok,hargaBeliCNY,hargaJual,lokasiRak,leadTimeHari</code></p>
+    <p class="text-xs text-slate-400 mb-4">Format: <code class="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300">id,nama,kategori,stok,minStok,hargaBeliCNY,hargaJual,lokasiRak,leadTimeHari</code></p>
     <div class="mb-4">
       <label class="text-xs text-slate-400 mb-1 block">Upload File CSV</label>
       <input type="file" accept=".csv,.txt" @change="handleFileUpload($event)" class="w-full bg-slate-800 border border-slate-700 text-slate-200 p-2.5 rounded-lg text-sm focus:outline-none">
@@ -599,7 +527,7 @@
 </div>
 
 <!-- PO Modal -->
-<div x-show="showModal.po" @click.self="closeModal('po')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" x-cloak>
+<div x-show="showModal.po" @click.self="closeModal('po')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 no-print" x-cloak>
   <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-2xl p-6">
     <h3 class="text-lg font-bold mb-5 text-white">Buat Purchase Order</h3>
     <div class="space-y-4">
@@ -620,79 +548,27 @@
             <option value="">Pilih SKU</option>
             <template x-for="item in inventory.filter(i => i.aktif !== false)"><option :value="item.id" x-text="item.id + ' — ' + item.nama"></option></template>
           </select>
-          <input type="number" x-model.number="poNewItem.qty" min="1" placeholder="Qty" class="w-24 bg-slate-800 border border-slate-700 text-slate-100 p-2 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
+          <input type="number" x-model.number="poNewItem.qty" min="1" placeholder="Qty" class="w-24 bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
           <button @click="addPOItem()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg text-sm transition"><i class="fas fa-plus"></i></button>
         </div>
       </div>
       <div x-show="poDraft.items.length > 0" class="border border-slate-800 rounded-lg overflow-hidden">
         <table class="w-full text-sm">
-          <thead class="bg-slate-800/80"><tr class="text-left text-slate-400 text-[10px] uppercase">
-            <th class="p-2">SKU</th><th class="text-right p-2">Qty</th><th class="text-right p-2">CNY</th><th class="text-center p-2">Hapus</th>
-          </tr></thead>
+          <thead class="bg-slate-800/80 text-[10px] uppercase text-slate-400 font-bold"><tr class="text-left"><th class="p-2">SKU</th><th class="text-right p-2">Qty</th><th class="text-right p-2">CNY</th><th class="text-center p-2">Hapus</th></tr></thead>
           <tbody>
             <template x-for="(item, idx) in poDraft.items">
-              <tr class="border-t border-slate-800">
-                <td class="p-2 font-mono text-xs text-indigo-400" x-text="item.sku"></td>
-                <td class="p-2 text-right text-slate-200" x-text="item.qty"></td>
-                <td class="p-2 text-right text-slate-400" x-text="(item.hargaBeliCNY||0).toFixed(2)"></td>
-                <td class="p-2 text-center"><button @click="removePOItem(idx)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></td>
-              </tr>
+              <tr class="border-t border-slate-800"><td class="p-2 font-mono text-xs text-indigo-400" x-text="item.sku"></td><td class="p-2 text-right text-slate-200" x-text="item.qty"></td><td class="p-2 text-right text-slate-400" x-text="(item.hargaBeliCNY||0).toFixed(2)"></td><td class="p-2 text-center"><button @click="removePOItem(idx)" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></td></tr>
             </template>
           </tbody>
         </table>
       </div>
-      <div x-show="poDraft.items.length > 0" class="text-right text-sm">
-        Total Estimasi: <span class="font-bold text-lg text-indigo-400" x-text="fmtRp(poTotal() * (settings.kursCNYtoIDR||16500))"></span>
-      </div>
+      <div x-show="poDraft.items.length > 0" class="text-right text-sm">Total Estimasi: <span class="font-bold text-lg text-indigo-400" x-text="fmtRp(poTotal() * (settings.kursCNYtoIDR||16500))"></span></div>
     </div>
     <div class="flex gap-2 mt-6">
       <button @click="savePO()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-semibold text-sm transition">Simpan PO</button>
       <button @click="closeModal('po')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg font-semibold text-sm transition">Batal</button>
     </div>
   </div>
-</div>
-
-<!-- Part Detail Modal -->
-<div x-show="showModal.partDetail" @click.self="closeModal('partDetail')" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" x-cloak>
-  <template x-if="selectedPart">
-  <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-2xl p-6">
-    <div class="flex justify-between items-start mb-4">
-      <div>
-        <h3 class="text-lg font-bold text-white" x-text="selectedPart.nama"></h3>
-        <span class="font-mono text-xs text-indigo-400" x-text="selectedPart.id"></span>
-      </div>
-      <span class="px-2 py-1 rounded text-xs font-semibold" :class="stockStatusBg(itemStatus(selectedPart)) + ' ' + stockStatusColor(itemStatus(selectedPart))" x-text="stockStatusLabel(itemStatus(selectedPart))"></span>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-      <div class="bg-slate-800/80 rounded-lg p-3 border border-slate-800">
-        <p class="text-[10px] text-slate-400 uppercase">Stok</p>
-        <p class="text-2xl font-bold" :class="itemAvg(selectedPart) > 0 && itemDaysLeft(selectedPart) <= 5 ? 'text-red-400' : 'text-indigo-400'" x-text="selectedPart.stok"></p>
-      </div>
-      <div class="bg-slate-800/80 rounded-lg p-3 border border-slate-800">
-        <p class="text-[10px] text-slate-400 uppercase">Avg/Day</p>
-        <p class="text-2xl font-bold text-cyan-400" x-text="itemAvg(selectedPart).toFixed(1)"></p>
-      </div>
-      <div class="bg-slate-800/80 rounded-lg p-3 border border-slate-800">
-        <p class="text-[10px] text-slate-400 uppercase">Days Left</p>
-        <p class="text-2xl font-bold text-yellow-400" x-text="itemAvg(selectedPart) > 0 ? itemDaysLeft(selectedPart) + 'h' : '—'"></p>
-      </div>
-      <div class="bg-slate-800/80 rounded-lg p-3 border border-slate-800">
-        <p class="text-[10px] text-slate-400 uppercase">Reorder At</p>
-        <p class="text-2xl font-bold text-red-400" x-text="itemReorderPoint(selectedPart)"></p>
-      </div>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-xs">
-      <div class="bg-slate-800/80 rounded-lg p-2"><span class="text-slate-400">Kategori</span><p class="font-medium text-slate-200" x-text="selectedPart.kategori"></p></div>
-      <div class="bg-slate-800/80 rounded-lg p-2"><span class="text-slate-400">Rak</span><p class="font-medium text-slate-200" x-text="selectedPart.lokasiRak || '-'"></p></div>
-      <div class="bg-slate-800/80 rounded-lg p-2"><span class="text-slate-400">Lead Time</span><p class="font-medium text-slate-200" x-text="selectedPart.leadTimeHari + ' hari'"></p></div>
-      <div class="bg-slate-800/80 rounded-lg p-2"><span class="text-slate-400">In Transit</span><p class="font-medium text-purple-400" x-text="poInTransitQty(selectedPart) + ' pcs'"></p></div>
-    </div>
-    <div class="flex gap-2 mt-4">
-      <button @click="openModal('inventory', selectedPart); closeModal('partDetail')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-sm font-semibold transition">Edit Part</button>
-      <button @click="closeModal('partDetail')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm transition">Tutup</button>
-    </div>
-  </div>
-  </template>
 </div>
 
 </body>
