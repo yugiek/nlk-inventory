@@ -245,17 +245,17 @@
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-              <thead class="bg-slate-800/80 border-b border-slate-800">
+            <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th class="text-left p-2 text-slate-400"><div class="th-filter">SKU</div><input type="text" x-model="colFilters.sku" placeholder="Filter SKU" class="col-filter-input"></div></th>
-                <th class="text-left p-2 text-slate-400"><div class="th-filter">Nama Part</div><input type="text" x-model="colFilters.nama" placeholder="Filter nama" class="col-filter-input"></div></th>
-                <th class="text-left p-2 text-slate-400"><div class="th-filter">Kategori</div><select x-model="colFilters.kategori" class="col-filter-input py-0"><option value="">Semua</option><template x-for="c in categories"><option :value="c" x-text="c"></option></template></select></th>
-                <th class="text-left p-2 text-slate-400"><div class="th-filter">Rak</div><input type="text" x-model="colFilters.rak" placeholder="Filter rak" class="col-filter-input"></div></th>
-                <th class="text-right p-2 text-slate-400"><div class="th-filter">Stok</div></th>
-                <th class="text-right p-2 text-slate-400"><div class="th-filter">Min</div></th>
-                <th class="text-right p-2 text-slate-400"><div class="th-filter">Avg/Day</div></th>
-                <th class="text-right p-2 text-slate-400"><div class="th-filter">Days Left</div></th>
-                <th class="text-center p-2 text-slate-400"><div class="th-filter">Status</div></th>
+                <th @click="sortBy('inv', 'id')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">SKU <i class="fas text-[8px]" :class="sortIcon('inv', 'id')"></i></div></th>
+                <th @click="sortBy('inv', 'nama')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Nama Part <i class="fas text-[8px]" :class="sortIcon('inv', 'nama')"></i></div></th>
+                <th @click="sortBy('inv', 'kategori')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Kategori <i class="fas text-[8px]" :class="sortIcon('inv', 'kategori')"></i></div></th>
+                <th @click="sortBy('inv', 'lokasiRak')" class="text-left p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center gap-1">Rak <i class="fas text-[8px]" :class="sortIcon('inv', 'lokasiRak')"></i></div></th>
+                <th @click="sortBy('inv', 'stok')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Stok <i class="fas text-[8px]" :class="sortIcon('inv', 'stok')"></i></div></th>
+                <th @click="sortBy('inv', 'minStok')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Min <i class="fas text-[8px]" :class="sortIcon('inv', 'minStok')"></i></div></th>
+                <th @click="sortBy('inv', 'avgDaily')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Avg/Day <i class="fas text-[8px]" :class="sortIcon('inv', 'avgDaily')"></i></div></th>
+                <th @click="sortBy('inv', 'daysLeft')" class="text-right p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-end gap-1">Days Left <i class="fas text-[8px]" :class="sortIcon('inv', 'daysLeft')"></i></div></th>
+                <th @click="sortBy('inv', 'status')" class="text-center p-2 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><div class="th-filter flex items-center justify-center gap-1">Status <i class="fas text-[8px]" :class="sortIcon('inv', 'status')"></i></div></th>
                 <th class="text-center p-2 text-slate-400"><div class="th-filter">Aksi</div></th>
               </tr>
             </thead>
@@ -307,16 +307,16 @@
           <table class="w-full text-sm">
             <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">Tanggal</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">SKU</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">Nama</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Qty</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Harga/Unit</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Total</th>
+                <th @click="sortBy('sales', 'tanggal')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Tanggal <i class="fas text-[8px]" :class="sortIcon('sales', 'tanggal')"></i></span></th>
+                <th @click="sortBy('sales', 'sku')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">SKU <i class="fas text-[8px]" :class="sortIcon('sales', 'sku')"></i></span></th>
+                <th @click="sortBy('sales', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Nama <i class="fas text-[8px]" :class="sortIcon('sales', 'nama')"></i></span></th>
+                <th @click="sortBy('sales', 'jumlah')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Qty <i class="fas text-[8px]" :class="sortIcon('sales', 'jumlah')"></i></span></th>
+                <th @click="sortBy('sales', 'hargaJual')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Harga/Unit <i class="fas text-[8px]" :class="sortIcon('sales', 'hargaJual')"></i></span></th>
+                <th @click="sortBy('sales', 'total')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total <i class="fas text-[8px]" :class="sortIcon('sales', 'total')"></i></span></th>
               </tr>
             </thead>
             <tbody>
-              <template x-for="s in salesWithName().slice(0, 50)">
+              <template x-for="s in sortedSales.slice(0, 100)">
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
                   <td class="p-3 text-xs text-slate-300" x-text="fmtDate(s.tanggal)"></td>
                   <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="s.sku"></td>
@@ -349,18 +349,18 @@
           <table class="w-full text-sm">
             <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">PO No</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">Tanggal</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px]">Supplier</th>
-                <th class="text-center p-3 text-slate-400 uppercase text-[10px]">Status</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Est. Tiba</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Total Qty</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px]">Total (IDR)</th>
-                <th class="text-center p-3 text-slate-400 uppercase text-[10px]">Action</th>
+                <th @click="sortBy('po', 'id')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">PO No <i class="fas text-[8px]" :class="sortIcon('po', 'id')"></i></span></th>
+                <th @click="sortBy('po', 'tanggalOrder')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Tanggal <i class="fas text-[8px]" :class="sortIcon('po', 'tanggalOrder')"></i></span></th>
+                <th @click="sortBy('po', 'supplierName')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center gap-1">Supplier <i class="fas text-[8px]" :class="sortIcon('po', 'supplierName')"></i></span></th>
+                <th @click="sortBy('po', 'status')" class="text-center p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-center gap-1">Status <i class="fas text-[8px]" :class="sortIcon('po', 'status')"></i></span></th>
+                <th @click="sortBy('po', 'estimasiTiba')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Est. Tiba <i class="fas text-[8px]" :class="sortIcon('po', 'estimasiTiba')"></i></span></th>
+                <th @click="sortBy('po', 'totalQty')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total Qty <i class="fas text-[8px]" :class="sortIcon('po', 'totalQty')"></i></span></th>
+                <th @click="sortBy('po', 'totalCost')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 transition select-none"><span class="flex items-center justify-end gap-1">Total (IDR) <i class="fas text-[8px]" :class="sortIcon('po', 'totalCost')"></i></span></th>
+                <th class="text-center p-3 text-slate-400"><span class="text-[10px] uppercase">Action</span></th>
               </tr>
             </thead>
             <tbody>
-              <template x-for="po in pos.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))">
+              <template x-for="po in sortedPOs">
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
                   <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="po.id"></td>
                   <td class="p-3 text-xs text-slate-300" x-text="fmtDate(po.tanggalOrder)"></td>

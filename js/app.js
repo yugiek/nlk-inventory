@@ -4,19 +4,15 @@ var NLK = window.NLK;
 document.addEventListener('alpine:init', function() {
   Alpine.data('nlkApp', function() {
     return {
-      // State
-      page: 'dashboard',
+      // Default ke Analytics & Performa Bulanan
+      page: 'analytics',
+      evalPeriod: 'bulanan',
       sidebarCollapsed: false,
       data: NLK.api.load(),
       searchQuery: '',
       selectedCategory: 'all',
       showModal: { inventory: false, sales: false, po: false, partDetail: false, importCSV: false },
-      form: {
-        inventory: {},
-        sales: {},
-        po: {},
-        poItems: []
-      },
+      form: { inventory: {}, sales: {}, po: {}, poItems: [] },
       poDraft: { supplierId: '', items: [] },
       poNewItem: { sku: '', qty: 1 },
       selectedPart: null,
@@ -24,11 +20,11 @@ document.addEventListener('alpine:init', function() {
       importProgress: '',
       syncStatus: '',
 
-      // Column filters (Inventory)
-      colFilters: { sku: '', nama: '', kategori: '', rak: '' },
+      // Sorting states for tables
+      sortInv: { col: 'id', dir: 'asc' },
+      sortSales: { col: 'tanggal', dir: 'desc' },
+      sortPO: { col: 'tanggalOrder', dir: 'desc' },
 
-      // Periodic evaluation
-      evalPeriod: 'mingguan',
       chartInstances: {},
 
       // Lifecycle
@@ -46,6 +42,9 @@ document.addEventListener('alpine:init', function() {
         this.$watch('evalPeriod', function() {
           setTimeout(function() { self.renderEvalCharts(); }, 50);
         });
+
+        // Trigger chart render on initial load
+        setTimeout(function() { self.renderEvalCharts(); }, 200);
       },
 
       toggleSidebar() {
@@ -72,26 +71,91 @@ document.addEventListener('alpine:init', function() {
       get suppliers() { return this.data.suppliers || []; },
       get settings() { return this.data.settings || {}; },
 
+      get currentMonthName() {
+        return new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      },
+
       get categories() {
         return ['all'].concat([...new Set(this.inventory.map(i => i.kategori))].sort());
       },
 
+      // Sorting helpers
+      sortBy(type, col) {
+        var sortObj = type === 'inv' ? this.sortInv : (type === 'sales' ? this.sortSales : this.sortPO);
+        if (sortObj.col === col) {
+          sortObj.dir = sortObj.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortObj.col = col;
+          sortObj.dir = 'asc';
+        }
+      },
+
+      sortIcon(type, col) {
+        var sortObj = type === 'inv' ? this.sortInv : (type === 'sales' ? this.sortSales : this.sortPO);
+        if (sortObj.col !== col) return 'fa-sort text-slate-600';
+        return sortObj.dir === 'asc' ? 'fa-sort-up text-indigo-400' : 'fa-sort-down text-indigo-400';
+      },
+
+      // Filtered & Sorted Inventory
       get filteredInventory() {
         const q = this.searchQuery.toLowerCase();
-        const cf = this.colFilters;
-        return this.inventory.filter(i => {
+        var self = this;
+        var list = this.inventory.filter(i => {
           const matchQ = !q || i.nama.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || (i.lokasiRak || '').toLowerCase().includes(q);
           const matchC = this.selectedCategory === 'all' || i.kategori === this.selectedCategory;
-          const matchCol = (!cf.sku || (i.id || '').toLowerCase().includes(cf.sku.toLowerCase())) &&
-                           (!cf.nama || (i.nama || '').toLowerCase().includes(cf.nama.toLowerCase())) &&
-                           (!cf.kategori || (i.kategori || '').toLowerCase().includes(cf.kategori.toLowerCase())) &&
-                           (!cf.rak || (i.lokasiRak || '').toLowerCase().includes(cf.rak.toLowerCase()));
-          return matchQ && matchC && matchCol;
+          return matchQ && matchC;
+        });
+
+        var col = this.sortInv.col;
+        var dir = this.sortInv.dir === 'asc' ? 1 : -1;
+
+        return list.sort(function(a, b) {
+          var valA = a[col], valB = b[col];
+          if (col === 'avgDaily') { valA = self.itemAvg(a); valB = self.itemAvg(b); }
+          if (col === 'daysLeft') { valA = self.itemDaysLeft(a); valB = self.itemDaysLeft(b); }
+          if (col === 'status') { valA = self.itemStatus(a); valB = self.itemStatus(b); }
+
+          if (valA === Infinity) valA = 999999;
+          if (valB === Infinity) valB = 999999;
+
+          if (typeof valA === 'string') return valA.localeCompare(valB) * dir;
+          return ((valA || 0) - (valB || 0)) * dir;
         });
       },
 
-      clearColFilters() {
-        this.colFilters = { sku: '', nama: '', kategori: '', rak: '' };
+      // Sorted Sales
+      get sortedSales() {
+        var col = this.sortSales.col;
+        var dir = this.sortSales.dir === 'asc' ? 1 : -1;
+        var self = this;
+
+        var list = this.salesWithName();
+        return list.sort(function(a, b) {
+          var valA = a[col], valB = b[col];
+          if (col === 'total') { valA = a.jumlah * a.hargaJual; valB = b.jumlah * b.hargaJual; }
+          if (typeof valA === 'string') return valA.localeCompare(valB) * dir;
+          return ((valA || 0) - (valB || 0)) * dir;
+        });
+      },
+
+      // Sorted Purchase Orders
+      get sortedPOs() {
+        var col = this.sortPO.col;
+        var dir = this.sortPO.dir === 'asc' ? 1 : -1;
+
+        return this.pos.slice().sort(function(a, b) {
+          var valA = a[col], valB = b[col];
+          if (col === 'totalQty') {
+            valA = (a.items || []).reduce((s, i) => s + i.qty, 0);
+            valB = (b.items || []).reduce((s, i) => s + i.qty, 0);
+          }
+          if (col === 'totalCost') {
+            valA = (a.items || []).reduce((s, i) => s + i.qty * i.hargaBeliCNY, 0);
+            valB = (b.items || []).reduce((s, i) => s + i.qty * i.hargaBeliCNY, 0);
+          }
+          if (typeof valA === 'string') return (valA || '').localeCompare(valB || '') * dir;
+          return ((valA || 0) - (valB || 0)) * dir;
+        });
       },
 
       get criticalItems() {
@@ -172,32 +236,22 @@ document.addEventListener('alpine:init', function() {
 
       // ==== PERIODIC EVALUATION ====
       evalRanges() {
-        var today = new Date();
-        var ranges = {};
-
-        // Mingguan (7 hari terakhir, dipecah per hari)
-        ranges.mingguan = { label: 'Mingguan', buckets: 7, daysPerBucket: 1, dateFmt: 'dd' };
-        // Bulanan (30 hari terakhir, dipecah per minggu - 4 minggu)
-        ranges.bulanan = { label: 'Bulanan', buckets: 4, daysPerBucket: 7, dateFmt: 'bln' };
-        // Kuartal (90 hari, dipecah per bulan - 3 bulan)
-        ranges.kuartal = { label: 'Kuartal', buckets: 3, daysPerBucket: 30, dateFmt: 'bln' };
-        // Semester (180 hari, per bulan - 6 bulan)
-        ranges.semester = { label: 'Semester', buckets: 6, daysPerBucket: 30, dateFmt: 'bln' };
-        // Tahunan (365 hari, per bulan - 12 bulan)
-        ranges.tahunan = { label: 'Tahunan', buckets: 12, daysPerBucket: 30, dateFmt: 'bln' };
-
-        return ranges;
+        return {
+          mingguan: { label: 'Mingguan', buckets: 7, daysPerBucket: 1 },
+          bulanan: { label: 'Bulanan', buckets: 4, daysPerBucket: 7 },
+          kuartal: { label: 'Kuartal', buckets: 3, daysPerBucket: 30 },
+          semester: { label: 'Semester', buckets: 6, daysPerBucket: 30 },
+          tahunan: { label: 'Tahunan', buckets: 12, daysPerBucket: 30 }
+        };
       },
 
       evalPeriodData() {
         var ranges = this.evalRanges();
-        var cfg = ranges[this.evalPeriod] || ranges.mingguan;
+        var cfg = ranges[this.evalPeriod] || ranges.bulanan;
         var labels = [];
         var salesQty = [];
         var salesRevenue = [];
         var today = new Date();
-        var cutoff = new Date(today);
-        cutoff.setDate(today.getDate() - (cfg.buckets * cfg.daysPerBucket));
 
         for (var b = 0; b < cfg.buckets; b++) {
           var endDate = new Date(today);
@@ -206,15 +260,15 @@ document.addEventListener('alpine:init', function() {
           startDate.setDate(endDate.getDate() - cfg.daysPerBucket + 1);
 
           if (cfg.buckets === 7) {
-            labels.push(endDate.toLocaleDateString('id-ID', { day: '2-digit' }));
+            labels.push(endDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }));
           } else if (cfg.buckets === 4) {
-            labels.push('M' + (b + 1));
+            labels.push('Minggu ' + (cfg.buckets - b));
           } else if (cfg.buckets === 3) {
-            labels.push('B' + (b + 1));
+            labels.push('Bulan ' + (cfg.buckets - b));
           } else if (cfg.buckets === 6) {
-            labels.push('S' + (b + 1));
+            labels.push('Bulan ' + (cfg.buckets - b));
           } else {
-            labels.push('B' + (b + 1));
+            labels.push('Bln ' + (cfg.buckets - b));
           }
 
           var startStr = startDate.toISOString().slice(0, 10);
@@ -243,8 +297,8 @@ document.addEventListener('alpine:init', function() {
         var periods = ['salesQty', 'salesRevenue'];
 
         var colors = {
-          salesQty: { border: '#818cf8', bg: 'rgba(99,102,241,0.15)', label: 'Qty Terjual' },
-          salesRevenue: { border: '#22d3ee', bg: 'rgba(34,211,238,0.15)', label: 'Omset (IDR)' }
+          salesQty: { border: '#818cf8', bg: 'rgba(99,102,241,0.2)', label: 'Qty Terjual (pcs)' },
+          salesRevenue: { border: '#22d3ee', bg: 'rgba(34,211,238,0.2)', label: 'Omset Penjualan (Rp)' }
         };
 
         periods.forEach(function(key) {
@@ -270,19 +324,19 @@ document.addEventListener('alpine:init', function() {
             },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               plugins: {
                 legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
               },
               scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(51,65,85,0.2)' } },
-                y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(51,65,85,0.2)' } }
+                x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.2)' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.2)' } }
               }
             }
           });
         });
       },
 
-      // ==== PERIODIC SUMMARY ====
       evalPeriodsList() {
         return [
           { id: 'mingguan', label: 'Mingguan', days: 7 },
