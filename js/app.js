@@ -6,6 +6,7 @@ document.addEventListener('alpine:init', function() {
     return {
       // State
       page: 'dashboard',
+      sidebarCollapsed: false,
       data: NLK.api.load(),
       searchQuery: '',
       selectedCategory: 'all',
@@ -21,14 +22,34 @@ document.addEventListener('alpine:init', function() {
       selectedPart: null,
       csvText: '',
       importProgress: '',
+      syncStatus: '',
+
+      // Column filters (Inventory)
+      colFilters: { sku: '', nama: '', kategori: '', rak: '' },
+
+      // Periodic evaluation
+      evalPeriod: 'mingguan',
+      chartInstances: {},
 
       // Lifecycle
       init() {
         NLK.api.init();
         this.data = NLK.api.load();
-        window.addEventListener('nlk-data-changed', () => {
-          this.data = NLK.api.load();
+        var self = this;
+        window.addEventListener('nlk-data-changed', function() {
+          self.data = NLK.api.load();
+          if (self.page === 'analytics') setTimeout(function() { self.renderEvalCharts(); }, 50);
         });
+        this.$watch('page', function(val) {
+          if (val === 'analytics') setTimeout(function() { self.renderEvalCharts(); }, 100);
+        });
+        this.$watch('evalPeriod', function() {
+          setTimeout(function() { self.renderEvalCharts(); }, 50);
+        });
+      },
+
+      toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
       },
 
       async syncNow() {
@@ -37,13 +58,12 @@ document.addEventListener('alpine:init', function() {
           await NLK.api.syncFromRemote();
           this.data = NLK.api.load();
           this.syncStatus = 'Sinkronisasi berhasil: ' + (this.data.inventory || []).length + ' item';
-          setTimeout(() => { this.syncStatus = ''; }, 3000);
+          var self = this;
+          setTimeout(function() { self.syncStatus = ''; }, 3000);
         } else {
           this.syncStatus = 'URL Apps Script belum diisi di Settings';
         }
       },
-
-      syncStatus: '',
 
       // Getters
       get inventory() { return this.data.inventory || []; },
@@ -58,26 +78,37 @@ document.addEventListener('alpine:init', function() {
 
       get filteredInventory() {
         const q = this.searchQuery.toLowerCase();
+        const cf = this.colFilters;
         return this.inventory.filter(i => {
           const matchQ = !q || i.nama.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || (i.lokasiRak || '').toLowerCase().includes(q);
           const matchC = this.selectedCategory === 'all' || i.kategori === this.selectedCategory;
-          return matchQ && matchC;
+          const matchCol = (!cf.sku || (i.id || '').toLowerCase().includes(cf.sku.toLowerCase())) &&
+                           (!cf.nama || (i.nama || '').toLowerCase().includes(cf.nama.toLowerCase())) &&
+                           (!cf.kategori || (i.kategori || '').toLowerCase().includes(cf.kategori.toLowerCase())) &&
+                           (!cf.rak || (i.lokasiRak || '').toLowerCase().includes(cf.rak.toLowerCase()));
+          return matchQ && matchC && matchCol;
         });
       },
 
+      clearColFilters() {
+        this.colFilters = { sku: '', nama: '', kategori: '', rak: '' };
+      },
+
       get criticalItems() {
+        var self = this;
         return this.inventory
-          .filter(i => this.itemStatus(i) === 'critical')
-          .map(i => Object.assign({}, i, {
-            _avgDaily: this.itemAvg(i),
-            _daysLeft: this.itemDaysLeft(i),
-            _reorderQty: this.itemReorderQty(i),
-            _reorderPoint: this.itemReorderPoint(i)
-          }));
+          .filter(function(i) { return self.itemStatus(i) === 'critical'; })
+          .map(function(i) { return Object.assign({}, i, {
+            _avgDaily: self.itemAvg(i),
+            _daysLeft: self.itemDaysLeft(i),
+            _reorderQty: self.itemReorderQty(i),
+            _reorderPoint: self.itemReorderPoint(i)
+          }); });
       },
 
       get warnItems() {
-        return this.inventory.filter(i => this.itemStatus(i) === 'warn');
+        var self = this;
+        return this.inventory.filter(function(i) { return self.itemStatus(i) === 'warn'; });
       },
 
       get activePOs() {
@@ -87,19 +118,13 @@ document.addEventListener('alpine:init', function() {
       get stats() {
         const inv = this.inventory;
         const sales = this.sales;
-        const invValue = inv.reduce((sum, i) => sum + (i.stok * (i.hargaBeliIDR || i.hargaBeliCNY * (this.settings.kursCNYtoIDR || 16500))), 0);
+        const kurs = this.settings.kursCNYtoIDR || 16500;
+        const invValue = inv.reduce((sum, i) => sum + (i.stok * (i.hargaBeliIDR || i.hargaBeliCNY * kurs)), 0);
         const totalSold = sales.reduce((sum, s) => sum + s.jumlah, 0);
         const revenue = sales.reduce((sum, s) => sum + (s.jumlah * s.hargaJual), 0);
         const lowStock = this.criticalItems.length;
         const inTransit = this.pos.filter(p => p.status === 'in transit' || p.status === 'shipped').length;
-        const stockoutValue = inv
-          .filter(i => this.itemStatus(i) === 'critical')
-          .reduce((sum, i) => sum + (i.stok * (i.hargaBeliIDR || i.hargaBeliCNY * (this.settings.kursCNYtoIDR || 16500))), 0);
-        return { invValue, totalSold, revenue, lowStock, inTransit, stockoutValue };
-      },
-
-      get recentSales() {
-        return this.sales.slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal)).slice(0, 8);
+        return { invValue, totalSold, revenue, lowStock, inTransit };
       },
 
       get topMoving() {
@@ -144,6 +169,168 @@ document.addEventListener('alpine:init', function() {
 
       // Navigation
       setPage(p) { this.page = p; },
+
+      // ==== PERIODIC EVALUATION ====
+      evalRanges() {
+        var today = new Date();
+        var ranges = {};
+
+        // Mingguan (7 hari terakhir, dipecah per hari)
+        ranges.mingguan = { label: 'Mingguan', buckets: 7, daysPerBucket: 1, dateFmt: 'dd' };
+        // Bulanan (30 hari terakhir, dipecah per minggu - 4 minggu)
+        ranges.bulanan = { label: 'Bulanan', buckets: 4, daysPerBucket: 7, dateFmt: 'bln' };
+        // Kuartal (90 hari, dipecah per bulan - 3 bulan)
+        ranges.kuartal = { label: 'Kuartal', buckets: 3, daysPerBucket: 30, dateFmt: 'bln' };
+        // Semester (180 hari, per bulan - 6 bulan)
+        ranges.semester = { label: 'Semester', buckets: 6, daysPerBucket: 30, dateFmt: 'bln' };
+        // Tahunan (365 hari, per bulan - 12 bulan)
+        ranges.tahunan = { label: 'Tahunan', buckets: 12, daysPerBucket: 30, dateFmt: 'bln' };
+
+        return ranges;
+      },
+
+      evalPeriodData() {
+        var ranges = this.evalRanges();
+        var cfg = ranges[this.evalPeriod] || ranges.mingguan;
+        var labels = [];
+        var salesQty = [];
+        var salesRevenue = [];
+        var today = new Date();
+        var cutoff = new Date(today);
+        cutoff.setDate(today.getDate() - (cfg.buckets * cfg.daysPerBucket));
+
+        for (var b = 0; b < cfg.buckets; b++) {
+          var endDate = new Date(today);
+          endDate.setDate(today.getDate() - (b * cfg.daysPerBucket));
+          var startDate = new Date(endDate);
+          startDate.setDate(endDate.getDate() - cfg.daysPerBucket + 1);
+
+          if (cfg.buckets === 7) {
+            labels.push(endDate.toLocaleDateString('id-ID', { day: '2-digit' }));
+          } else if (cfg.buckets === 4) {
+            labels.push('M' + (b + 1));
+          } else if (cfg.buckets === 3) {
+            labels.push('B' + (b + 1));
+          } else if (cfg.buckets === 6) {
+            labels.push('S' + (b + 1));
+          } else {
+            labels.push('B' + (b + 1));
+          }
+
+          var startStr = startDate.toISOString().slice(0, 10);
+          var endStr = endDate.toISOString().slice(0, 10);
+
+          var periodSales = this.sales.filter(function(s) {
+            return s.tanggal >= startStr && s.tanggal <= endStr;
+          });
+
+          var qty = periodSales.reduce(function(sum, s) { return sum + (s.jumlah || 0); }, 0);
+          var rev = periodSales.reduce(function(sum, s) { return sum + (s.jumlah * s.hargaJual); }, 0);
+          salesQty.push(qty);
+          salesRevenue.push(rev);
+        }
+
+        salesQty.reverse();
+        salesRevenue.reverse();
+        labels.reverse();
+
+        return { labels: labels, salesQty: salesQty, salesRevenue: salesRevenue, cfg: cfg };
+      },
+
+      renderEvalCharts() {
+        var data = this.evalPeriodData();
+        var self = this;
+        var periods = ['salesQty', 'salesRevenue'];
+
+        var colors = {
+          salesQty: { border: '#818cf8', bg: 'rgba(99,102,241,0.15)', label: 'Qty Terjual' },
+          salesRevenue: { border: '#22d3ee', bg: 'rgba(34,211,238,0.15)', label: 'Omset (IDR)' }
+        };
+
+        periods.forEach(function(key) {
+          var el = document.getElementById('evalChart_' + key);
+          if (!el) return;
+          if (self.chartInstances[key]) {
+            self.chartInstances[key].destroy();
+            delete self.chartInstances[key];
+          }
+          var col = colors[key];
+          self.chartInstances[key] = new Chart(el.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: data.labels,
+              datasets: [{
+                label: col.label,
+                data: data[key],
+                backgroundColor: col.bg,
+                borderColor: col.border,
+                borderWidth: 2,
+                borderRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+              },
+              scales: {
+                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(51,65,85,0.2)' } },
+                y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(51,65,85,0.2)' } }
+              }
+            }
+          });
+        });
+      },
+
+      // ==== PERIODIC SUMMARY ====
+      evalPeriodsList() {
+        return [
+          { id: 'mingguan', label: 'Mingguan', days: 7 },
+          { id: 'bulanan', label: 'Bulanan', days: 30 },
+          { id: 'kuartal', label: 'Kuartal', days: 90 },
+          { id: 'semester', label: 'Semester', days: 180 },
+          { id: 'tahunan', label: 'Tahunan', days: 365 }
+        ];
+      },
+
+      periodSummary(periodDays) {
+        var cutoff = NLK.daysAgo(periodDays);
+        var periodSales = this.sales.filter(function(s) { return s.tanggal >= cutoff; });
+        var qty = periodSales.reduce(function(sum, s) { return sum + (s.jumlah || 0); }, 0);
+        var revenue = periodSales.reduce(function(sum, s) { return sum + (s.jumlah * s.hargaJual); }, 0);
+        var uniqueDays = new Set(periodSales.map(function(s) { return s.tanggal; })).size;
+        var avgPerDay = uniqueDays > 0 ? qty / uniqueDays : 0;
+        var topItems = {};
+        periodSales.forEach(function(s) {
+          if (!topItems[s.sku]) topItems[s.sku] = 0;
+          topItems[s.sku] += s.jumlah;
+        });
+        var bestSku = Object.keys(topItems).sort(function(a, b) { return topItems[b] - topItems[a]; })[0];
+        var bestNama = this.inventory.find(function(i) { return i.id === bestSku; });
+        return {
+          qty: qty,
+          revenue: revenue,
+          avgPerDay: avgPerDay,
+          bestSku: bestSku,
+          bestNama: bestNama ? bestNama.nama : (bestSku || '-')
+        };
+      },
+
+      evalSummary() {
+        var self = this;
+        return this.evalPeriodsList().map(function(p) {
+          var s = self.periodSummary(p.days);
+          return {
+            id: p.id,
+            label: p.label,
+            days: p.days,
+            qty: s.qty,
+            revenue: s.revenue,
+            avgPerDay: s.avgPerDay,
+            bestNama: s.bestNama
+          };
+        });
+      },
 
       // Modals
       openModal(type, item) {
@@ -196,7 +383,7 @@ document.addEventListener('alpine:init', function() {
         if (!this.csvText.trim()) { alert('Data CSV kosong'); return; }
         const items = NLK.parseCSV(this.csvText);
         if (items.length === 0) { alert('Format CSV tidak valid'); return; }
-        
+
         var count = 0;
         var self = this;
         items.forEach(function(row) {
@@ -217,7 +404,7 @@ document.addEventListener('alpine:init', function() {
             count++;
           }
         });
-        
+
         this.data = NLK.api.load();
         this.importProgress = 'Berhasil mengimpor ' + count + ' item baru!';
         setTimeout(function() {

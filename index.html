@@ -8,6 +8,9 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   
@@ -30,6 +33,10 @@
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #334155; }
     select option { background: #0f172a; color: #f1f5f9; }
+    .th-filter { font-weight: 400; font-size: 10px; }
+    .th-filter input { min-width: 60px; }
+    .col-filter-input { width: 100%; background: #0f172a; border: 1px solid #1e293b; color: #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+    .col-filter-input:focus { outline: none; border-color: #6366f1; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased" x-data="nlkApp" x-cloak>
@@ -37,50 +44,61 @@
 <div class="flex h-screen overflow-hidden">
 
   <!-- ========== SIDEBAR ========== -->
-  <aside class="w-60 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
-    <div class="p-5 border-b border-slate-800">
-      <h1 class="text-xl font-bold text-indigo-400 flex items-center gap-2">
+  <aside :class="sidebarCollapsed ? 'w-16' : 'w-60'" class="bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <h1 :class="sidebarCollapsed ? 'hidden' : 'flex'" class="text-xl font-bold text-indigo-400 items-center gap-2">
         <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center"><i class="fas fa-cube text-indigo-400"></i></div>
-        NLK Inventory
+        <span class="whitespace-nowrap">NLK Inventory</span>
       </h1>
-      <p class="text-[10px] text-slate-400 mt-2 tracking-wider uppercase">Sparepart Management System</p>
+      <div x-show="sidebarCollapsed" class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center mx-auto"><i class="fas fa-cube text-indigo-400"></i></div>
     </div>
+    <button @click="toggleSidebar()" class="mx-3 mt-2 flex items-center justify-center py-1.5 text-xs text-slate-400 hover:text-indigo-400 hover:bg-slate-800/60 rounded-lg transition border border-slate-800">
+      <i :class="sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'" class="text-xs"></i>
+      <span x-show="!sidebarCollapsed" class="ml-1">Sembunyikan Menu</span>
+    </button>
     <nav class="flex-1 p-3 space-y-1">
       <button @click="setPage('dashboard')"
               :class="page === 'dashboard' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-chart-pie w-5 text-center"></i>Dashboard
+              :title="sidebarCollapsed ? 'Dashboard' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-chart-pie w-5 text-center"></i><span x-show="!sidebarCollapsed">Dashboard</span>
       </button>
       <button @click="setPage('inventory')"
               :class="page === 'inventory' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-box w-5 text-center"></i>Inventory
+              :title="sidebarCollapsed ? 'Inventory' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-box w-5 text-center"></i><span x-show="!sidebarCollapsed">Inventory</span>
       </button>
       <button @click="setPage('sales')"
               :class="page === 'sales' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-receipt w-5 text-center"></i>Penjualan
+              :title="sidebarCollapsed ? 'Penjualan' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-receipt w-5 text-center"></i><span x-show="!sidebarCollapsed">Penjualan</span>
       </button>
       <button @click="setPage('po')"
               :class="page === 'po' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-truck w-5 text-center"></i>Purchase Order
+              :title="sidebarCollapsed ? 'Purchase Order' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-truck w-5 text-center"></i><span x-show="!sidebarCollapsed">Purchase Order</span>
       </button>
     </nav>
     <div class="p-3 space-y-1 border-t border-slate-800">
       <button @click="setPage('analytics')"
               :class="page === 'analytics' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-chart-line w-5 text-center"></i>Analitik
+              :title="sidebarCollapsed ? 'Analitik' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-chart-line w-5 text-center"></i><span x-show="!sidebarCollapsed">Analitik</span>
       </button>
       <button @click="setPage('settings')"
               :class="page === 'settings' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800/60'"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium">
-        <i class="fas fa-cog w-5 text-center"></i>Pengaturan
+              :title="sidebarCollapsed ? 'Pengaturan' : ''"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium" :style="sidebarCollapsed ? 'justify-content:center;padding-left:0;padding-right:0' : ''">
+        <i class="fas fa-cog w-5 text-center"></i><span x-show="!sidebarCollapsed">Pengaturan</span>
       </button>
     </div>
     <div class="p-4 border-t border-slate-800 text-center">
-      <p class="text-[9px] text-slate-500 tracking-wider">NLK SPAREPART &copy; 2026</p>
+      <p x-show="!sidebarCollapsed" class="text-[9px] text-slate-500 tracking-wider">NLK SPAREPART &copy; 2026</p>
+      <p x-show="sidebarCollapsed" class="text-[9px] text-slate-600">NLK</p>
     </div>
   </aside>
 
@@ -227,18 +245,18 @@
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-slate-800/80 border-b border-slate-800">
+              <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-wider">SKU</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-wider">Nama Part</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-wider">Kategori</th>
-                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-wider">Rak</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-wider">Stok</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-wider">Min</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-wider">Avg/Day</th>
-                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-wider">Days Left</th>
-                <th class="text-center p-3 text-slate-400 uppercase text-[10px] tracking-wider">Status</th>
-                <th class="text-center p-3 text-slate-400 uppercase text-[10px] tracking-wider">Aksi</th>
+                <th class="text-left p-2 text-slate-400"><div class="th-filter">SKU</div><input type="text" x-model="colFilters.sku" placeholder="Filter SKU" class="col-filter-input"></div></th>
+                <th class="text-left p-2 text-slate-400"><div class="th-filter">Nama Part</div><input type="text" x-model="colFilters.nama" placeholder="Filter nama" class="col-filter-input"></div></th>
+                <th class="text-left p-2 text-slate-400"><div class="th-filter">Kategori</div><select x-model="colFilters.kategori" class="col-filter-input py-0"><option value="">Semua</option><template x-for="c in categories"><option :value="c" x-text="c"></option></template></select></th>
+                <th class="text-left p-2 text-slate-400"><div class="th-filter">Rak</div><input type="text" x-model="colFilters.rak" placeholder="Filter rak" class="col-filter-input"></div></th>
+                <th class="text-right p-2 text-slate-400"><div class="th-filter">Stok</div></th>
+                <th class="text-right p-2 text-slate-400"><div class="th-filter">Min</div></th>
+                <th class="text-right p-2 text-slate-400"><div class="th-filter">Avg/Day</div></th>
+                <th class="text-right p-2 text-slate-400"><div class="th-filter">Days Left</div></th>
+                <th class="text-center p-2 text-slate-400"><div class="th-filter">Status</div></th>
+                <th class="text-center p-2 text-slate-400"><div class="th-filter">Aksi</div></th>
               </tr>
             </thead>
             <tbody>
@@ -378,9 +396,49 @@
 
     <!-- ===== ANALYTICS ===== -->
     <div x-show="page === 'analytics'" class="p-6 space-y-6">
-      <h2 class="text-2xl font-bold text-white mb-2">Grafik & Analitik</h2>
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-white">Grafik & Analitik</h2>
+        <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-1">
+          <template x-for="p in ['mingguan','bulanan','kuartal','semester','tahunan']">
+            <button @click="evalPeriod = p"
+                    :class="evalPeriod === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'"
+                    class="px-3 py-1 rounded-md text-xs font-medium transition-all capitalize"
+                    x-text="p"></button>
+          </template>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center">
+            <i class="fas fa-shopping-cart mr-2 text-indigo-400"></i>Tren Penjualan (Qty)
+          </h3>
+          <canvas id="evalChart_salesQty" class="w-full h-64"></canvas>
+        </div>
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+          <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center">
+            <i class="fas fa-dollar-sign mr-2 text-cyan-400"></i>Tren Omset (IDR)
+          </h3>
+          <canvas id="evalChart_salesRevenue" class="w-full h-64"></canvas>
+        </div>
+      </div>
+
       <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
-        <h3 class="text-sm font-semibold text-slate-200 mb-3">Reorder Forecast (Semua Item)</h3>
+        <h3 class="text-sm font-semibold text-slate-300 mb-4">Ringkasan Performa</h3>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <template x-for="row in evalSummary()">
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-800">
+              <p class="text-[10px] text-slate-500 uppercase font-bold" x-text="row.label"></p>
+              <p class="text-lg font-bold text-indigo-400" x-text="row.qty + ' pcs'"></p>
+              <p class="text-[10px] text-slate-400 mt-1 truncate" x-text="'Top: ' + row.bestNama"></p>
+              <p class="text-[11px] text-emerald-400 font-medium mt-1" x-text="fmtRp(row.revenue)"></p>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
+        <h3 class="text-sm font-semibold text-slate-300 mb-3">Reorder Forecast (Perlu Order)</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-800/80 border-b border-slate-800">
