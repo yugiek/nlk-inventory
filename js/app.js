@@ -1,5 +1,5 @@
-const NLK = window.NLK || {};
-window.NLK = NLK;
+if (typeof window.NLK === 'undefined') { window.NLK = {}; }
+var NLK = window.NLK;
 
 document.addEventListener('alpine:init', function() {
   Alpine.data('nlkApp', function() {

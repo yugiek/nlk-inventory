@@ -1,5 +1,5 @@
-const NLK = window.NLK || {};
-window.NLK = NLK;
+if (typeof window.NLK === 'undefined') { window.NLK = {}; }
+var NLK = window.NLK;
 
 NLK.fmtRp = function(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');

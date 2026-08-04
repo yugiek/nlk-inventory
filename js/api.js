@@ -1,5 +1,5 @@
-const NLK = window.NLK || {};
-window.NLK = NLK;
+if (typeof window.NLK === 'undefined') { window.NLK = {}; }
+var NLK = window.NLK;
 
 const API = {
   STORAGE_KEY: 'nlk_inventory_data',
