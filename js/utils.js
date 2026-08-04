@@ -34,7 +34,7 @@ NLK.genId = function(prefix) {
 NLK.buildSalesMap = function(sales, days) {
   days = days || 30;
   var cutoff = NLK.daysAgo(days);
-  var map = {}; // sku -> { totalQty, daysSet }
+  var map = {};
   for (var i = 0; i < sales.length; i++) {
     var s = sales[i];
     if (s.tanggal >= cutoff) {
@@ -108,7 +108,7 @@ NLK.parseCSV = function(text) {
   return result;
 };
 
-// Generate 150 Dummy Inventory Items for NLK Sparepart
+// Generate 150 Dummy Inventory Items
 function generate150DummyParts() {
   var cats = ['Engine', 'Transmission', 'Suspension', 'Electrical', 'Filter', 'Brake', 'Bearing', 'Gasket', 'Belt', 'Body'];
   var parts = [];
@@ -118,9 +118,10 @@ function generate150DummyParts() {
     var cat = cats[i % cats.length];
     var id = 'NLK-' + String(1000 + i);
     var nama = cat + ' Part Model ' + (100 + i);
-    var stok = Math.floor(Math.random() * 80) + 2;
-    var minStok = Math.floor(Math.random() * 15) + 5;
-    var cny = Math.floor(Math.random() * 200) + 10;
+    // Bikin beberapa item stok kritis/rendah untuk testing alert reorder
+    var stok = (i % 7 === 0) ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 80) + 10;
+    var minStok = Math.floor(Math.random() * 15) + 8;
+    var cny = Math.floor(Math.random() * 200) + 15;
     var jual = cny * 16500 * 1.4;
     jual = Math.round(jual / 5000) * 5000;
     parts.push({
@@ -139,20 +140,21 @@ function generate150DummyParts() {
   return parts;
 }
 
-// Generate 45 days of dummy sales history (ringan & cepat)
+// Generate 365 Hari Dummy Sales History (untuk evaluasi mingguan/bulanan/kuartal/semester/tahunan)
 function generateDummySales(inventory) {
   var sales = [];
   var today = new Date();
-  for (var d = 45; d >= 0; d--) {
+  
+  for (var d = 365; d >= 0; d--) {
     var dateObj = new Date();
     dateObj.setDate(today.getDate() - d);
     var dateStr = dateObj.toISOString().slice(0, 10);
     
-    // 3-6 transaksi per hari
+    // 2 - 5 transaksi per hari
     var txCount = Math.floor(Math.random() * 4) + 2;
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
-      var qty = Math.floor(Math.random() * 3) + 1;
+      var qty = Math.floor(Math.random() * 4) + 1;
       sales.push({
         id: 'SALE-' + Math.floor(100000 + Math.random() * 900000),
         tanggal: dateStr,
@@ -165,33 +167,58 @@ function generateDummySales(inventory) {
   return sales;
 }
 
-// Generate 2 dummy POs
+// Generate 5 Dummy Purchase Orders dengan status beragam
 function generateDummyPOs(inventory) {
   return [
     {
       id: 'PO-2026-001',
-      tanggalOrder: NLK.daysAgo(20),
+      tanggalOrder: NLK.daysAgo(25),
       supplierId: 'SUP-001',
       supplierName: 'Guangzhou Auto Parts Co.',
       status: 'shipped',
       estimasiTiba: NLK.addDays(NLK.today(), 5),
       items: [
-        { sku: inventory[0].id, qty: 50, hargaBeliCNY: inventory[0].hargaBeliCNY },
-        { sku: inventory[1].id, qty: 100, hargaBeliCNY: inventory[1].hargaBeliCNY }
+        { sku: inventory[0].id, qty: 100, hargaBeliCNY: inventory[0].hargaBeliCNY },
+        { sku: inventory[1].id, qty: 150, hargaBeliCNY: inventory[1].hargaBeliCNY }
       ],
-      catatan: 'Pengiriman via laut - Container #CN-8821'
+      catatan: 'Pengiriman Laut - Container #CN-8821'
     },
     {
       id: 'PO-2026-002',
-      tanggalOrder: NLK.daysAgo(10),
+      tanggalOrder: NLK.daysAgo(12),
       supplierId: 'SUP-002',
       supplierName: 'Shenzhen Precision Parts Ltd',
       status: 'in transit',
-      estimasiTiba: NLK.addDays(NLK.today(), 12),
+      estimasiTiba: NLK.addDays(NLK.today(), 10),
       items: [
-        { sku: inventory[4].id, qty: 40, hargaBeliCNY: inventory[4].hargaBeliCNY }
+        { sku: inventory[6].id, qty: 60, hargaBeliCNY: inventory[6].hargaBeliCNY },
+        { sku: inventory[7].id, qty: 80, hargaBeliCNY: inventory[7].hargaBeliCNY }
       ],
-      catatan: 'Express air shipping'
+      catatan: 'Express Air Freight'
+    },
+    {
+      id: 'PO-2026-003',
+      tanggalOrder: NLK.daysAgo(3),
+      supplierId: 'SUP-003',
+      supplierName: 'Shanghai Heavy Machinery & Parts',
+      status: 'ordered',
+      estimasiTiba: NLK.addDays(NLK.today(), 28),
+      items: [
+        { sku: inventory[13].id, qty: 200, hargaBeliCNY: inventory[13].hargaBeliCNY }
+      ],
+      catatan: 'Order baru - Menunggu konfirmasi kapal'
+    },
+    {
+      id: 'PO-2026-004',
+      tanggalOrder: NLK.daysAgo(45),
+      supplierId: 'SUP-001',
+      supplierName: 'Guangzhou Auto Parts Co.',
+      status: 'arrived',
+      estimasiTiba: NLK.daysAgo(15),
+      items: [
+        { sku: inventory[2].id, qty: 120, hargaBeliCNY: inventory[2].hargaBeliCNY }
+      ],
+      catatan: 'Barang sudah masuk gudang'
     }
   ];
 }
