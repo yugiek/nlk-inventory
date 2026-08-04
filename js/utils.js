@@ -30,14 +30,41 @@ NLK.genId = function(prefix) {
   return prefix + '-' + Math.floor(10000 + Math.random() * 90000);
 };
 
+// Faster sales aggregation map
+NLK.buildSalesMap = function(sales, days) {
+  days = days || 30;
+  var cutoff = NLK.daysAgo(days);
+  var map = {}; // sku -> { totalQty, daysSet }
+  for (var i = 0; i < sales.length; i++) {
+    var s = sales[i];
+    if (s.tanggal >= cutoff) {
+      if (!map[s.sku]) map[s.sku] = { totalQty: 0, days: {} };
+      map[s.sku].totalQty += (s.jumlah || 0);
+      map[s.sku].days[s.tanggal] = true;
+    }
+  }
+  var result = {};
+  for (var sku in map) {
+    var uniqueDays = Object.keys(map[sku].days).length;
+    result[sku] = uniqueDays > 0 ? map[sku].totalQty / uniqueDays : 0;
+  }
+  return result;
+};
+
 NLK.avgDailySales = function(sales, sku, days) {
   days = days || 30;
   var cutoff = NLK.daysAgo(days);
-  var filtered = sales.filter(function(s) { return s.sku === sku && s.tanggal >= cutoff; });
-  if (filtered.length === 0) return 0;
-  var total = filtered.reduce(function(sum, s) { return sum + s.jumlah; }, 0);
-  var uniqueDays = new Set(filtered.map(function(s) { return s.tanggal; })).size;
-  return uniqueDays > 0 ? total / uniqueDays : 0;
+  var total = 0;
+  var uniqueDays = {};
+  for (var i = 0; i < sales.length; i++) {
+    var s = sales[i];
+    if (s.sku === sku && s.tanggal >= cutoff) {
+      total += (s.jumlah || 0);
+      uniqueDays[s.tanggal] = true;
+    }
+  }
+  var count = Object.keys(uniqueDays).length;
+  return count > 0 ? total / count : 0;
 };
 
 NLK.stockStatus = function(item, avgDaily) {
@@ -57,7 +84,7 @@ NLK.statusLabel = function(s) {
 };
 
 NLK.statusColor = function(s) {
-  return { ok: 'text-emerald-400', warn: 'text-yellow-400', critical: 'text-red-400' }[s] || 'text-gray-400';
+  return { ok: 'text-emerald-400', warn: 'text-yellow-400', critical: 'text-red-400' }[s] || 'text-slate-400';
 };
 
 NLK.statusBg = function(s) {
@@ -112,17 +139,17 @@ function generate150DummyParts() {
   return parts;
 }
 
-// Generate 90 days of dummy sales history
+// Generate 45 days of dummy sales history (ringan & cepat)
 function generateDummySales(inventory) {
   var sales = [];
   var today = new Date();
-  for (var d = 90; d >= 0; d--) {
+  for (var d = 45; d >= 0; d--) {
     var dateObj = new Date();
     dateObj.setDate(today.getDate() - d);
     var dateStr = dateObj.toISOString().slice(0, 10);
     
-    // 5-10 transactions per day
-    var txCount = Math.floor(Math.random() * 6) + 3;
+    // 3-6 transaksi per hari
+    var txCount = Math.floor(Math.random() * 4) + 2;
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
       var qty = Math.floor(Math.random() * 3) + 1;
@@ -138,7 +165,7 @@ function generateDummySales(inventory) {
   return sales;
 }
 
-// Generate 5 dummy POs
+// Generate 2 dummy POs
 function generateDummyPOs(inventory) {
   return [
     {
@@ -185,7 +212,6 @@ NLK.SEED = {
   }
 };
 
-// Initialize large dataset if empty
 const tempInv = generate150DummyParts();
 NLK.SEED.inventory = tempInv;
 NLK.SEED.sales = generateDummySales(tempInv);

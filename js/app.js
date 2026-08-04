@@ -4,7 +4,6 @@ var NLK = window.NLK;
 document.addEventListener('alpine:init', function() {
   Alpine.data('nlkApp', function() {
     return {
-      // Default ke Analytics & Performa Bulanan
       page: 'analytics',
       evalPeriod: 'bulanan',
       sidebarCollapsed: false,
@@ -20,22 +19,27 @@ document.addEventListener('alpine:init', function() {
       importProgress: '',
       syncStatus: '',
 
-      // Sorting states for tables
       sortInv: { col: 'id', dir: 'asc' },
       sortSales: { col: 'tanggal', dir: 'desc' },
       sortPO: { col: 'tanggalOrder', dir: 'desc' },
 
       chartInstances: {},
 
-      // Lifecycle
+      // Cached map for ultra-fast itemAvg calculations
+      salesAvgMap: {},
+
       init() {
         NLK.api.init();
         this.data = NLK.api.load();
+        this.rebuildAvgMap();
+        
         var self = this;
         window.addEventListener('nlk-data-changed', function() {
           self.data = NLK.api.load();
+          self.rebuildAvgMap();
           if (self.page === 'analytics') setTimeout(function() { self.renderEvalCharts(); }, 50);
         });
+        
         this.$watch('page', function(val) {
           if (val === 'analytics') setTimeout(function() { self.renderEvalCharts(); }, 100);
         });
@@ -43,8 +47,11 @@ document.addEventListener('alpine:init', function() {
           setTimeout(function() { self.renderEvalCharts(); }, 50);
         });
 
-        // Trigger chart render on initial load
         setTimeout(function() { self.renderEvalCharts(); }, 200);
+      },
+
+      rebuildAvgMap() {
+        this.salesAvgMap = NLK.buildSalesMap(this.sales, 30);
       },
 
       toggleSidebar() {
@@ -56,6 +63,7 @@ document.addEventListener('alpine:init', function() {
         if (NLK.api.remoteUrl()) {
           await NLK.api.syncFromRemote();
           this.data = NLK.api.load();
+          this.rebuildAvgMap();
           this.syncStatus = 'Sinkronisasi berhasil: ' + (this.data.inventory || []).length + ' item';
           var self = this;
           setTimeout(function() { self.syncStatus = ''; }, 3000);
@@ -64,7 +72,6 @@ document.addEventListener('alpine:init', function() {
         }
       },
 
-      // Getters
       get inventory() { return this.data.inventory || []; },
       get sales() { return this.data.sales || []; },
       get pos() { return this.data.purchaseOrders || []; },
@@ -79,7 +86,6 @@ document.addEventListener('alpine:init', function() {
         return ['all'].concat([...new Set(this.inventory.map(i => i.kategori))].sort());
       },
 
-      // Sorting helpers
       sortBy(type, col) {
         var sortObj = type === 'inv' ? this.sortInv : (type === 'sales' ? this.sortSales : this.sortPO);
         if (sortObj.col === col) {
@@ -96,7 +102,6 @@ document.addEventListener('alpine:init', function() {
         return sortObj.dir === 'asc' ? 'fa-sort-up text-indigo-400' : 'fa-sort-down text-indigo-400';
       },
 
-      // Filtered & Sorted Inventory
       get filteredInventory() {
         const q = this.searchQuery.toLowerCase();
         var self = this;
@@ -123,11 +128,9 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // Sorted Sales
       get sortedSales() {
         var col = this.sortSales.col;
         var dir = this.sortSales.dir === 'asc' ? 1 : -1;
-        var self = this;
 
         var list = this.salesWithName();
         return list.sort(function(a, b) {
@@ -138,7 +141,6 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // Sorted Purchase Orders
       get sortedPOs() {
         var col = this.sortPO.col;
         var dir = this.sortPO.dir === 'asc' ? 1 : -1;
@@ -206,9 +208,10 @@ document.addEventListener('alpine:init', function() {
           .slice(0, 5);
       },
 
-      // Analysis helpers
+      // Fast cached avg
       itemAvg(item) {
-        return NLK.avgDailySales(this.sales, item.id, 30);
+        if (!item || !item.id) return 0;
+        return this.salesAvgMap[item.id] || 0;
       },
       itemStatus(item) {
         return NLK.stockStatus(item, this.itemAvg(item));
@@ -231,10 +234,8 @@ document.addEventListener('alpine:init', function() {
         return qty > 0 ? Math.ceil(qty) : 0;
       },
 
-      // Navigation
       setPage(p) { this.page = p; },
 
-      // ==== PERIODIC EVALUATION ====
       evalRanges() {
         return {
           mingguan: { label: 'Mingguan', buckets: 7, daysPerBucket: 1 },
@@ -262,11 +263,11 @@ document.addEventListener('alpine:init', function() {
           if (cfg.buckets === 7) {
             labels.push(endDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }));
           } else if (cfg.buckets === 4) {
-            labels.push('Minggu ' + (cfg.buckets - b));
+            labels.push('M' + (cfg.buckets - b));
           } else if (cfg.buckets === 3) {
-            labels.push('Bulan ' + (cfg.buckets - b));
+            labels.push('Bln ' + (cfg.buckets - b));
           } else if (cfg.buckets === 6) {
-            labels.push('Bulan ' + (cfg.buckets - b));
+            labels.push('Bln ' + (cfg.buckets - b));
           } else {
             labels.push('Bln ' + (cfg.buckets - b));
           }
@@ -297,17 +298,19 @@ document.addEventListener('alpine:init', function() {
         var periods = ['salesQty', 'salesRevenue'];
 
         var colors = {
-          salesQty: { border: '#818cf8', bg: 'rgba(99,102,241,0.2)', label: 'Qty Terjual (pcs)' },
-          salesRevenue: { border: '#22d3ee', bg: 'rgba(34,211,238,0.2)', label: 'Omset Penjualan (Rp)' }
+          salesQty: { border: '#818cf8', bg: 'rgba(99, 102, 241, 0.4)', label: 'Qty Terjual (pcs)' },
+          salesRevenue: { border: '#22d3ee', bg: 'rgba(34, 211, 238, 0.4)', label: 'Omset Penjualan (Rp)' }
         };
 
         periods.forEach(function(key) {
           var el = document.getElementById('evalChart_' + key);
           if (!el) return;
+          
           if (self.chartInstances[key]) {
             self.chartInstances[key].destroy();
             delete self.chartInstances[key];
           }
+
           var col = colors[key];
           self.chartInstances[key] = new Chart(el.getContext('2d'), {
             type: 'bar',
@@ -319,18 +322,22 @@ document.addEventListener('alpine:init', function() {
                 backgroundColor: col.bg,
                 borderColor: col.border,
                 borderWidth: 2,
-                borderRadius: 6
+                borderRadius: 4
               }]
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
-                legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+                legend: {
+                  display: true,
+                  position: 'top',
+                  labels: { color: '#f1f5f9', font: { size: 12, weight: '600' }, boxWidth: 12 }
+                }
               },
               scales: {
-                x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.2)' } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.2)' } }
+                x: { ticks: { color: '#cbd5e1', font: { size: 11 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                y: { ticks: { color: '#cbd5e1', font: { size: 11 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' }, beginAtZero: true }
               }
             }
           });
@@ -386,7 +393,6 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // Modals
       openModal(type, item) {
         if (type === 'inventory') {
           this.form.inventory = item ? JSON.parse(JSON.stringify(item)) : {
@@ -408,7 +414,6 @@ document.addEventListener('alpine:init', function() {
       },
       closeModal(type) { this.showModal[type] = false; },
 
-      // Inventory actions
       saveInventory() {
         const f = this.form.inventory;
         if (!f.nama || !f.kategori) { alert('Nama dan kategori wajib diisi'); return; }
@@ -423,16 +428,17 @@ document.addEventListener('alpine:init', function() {
           NLK.api.addPart(f);
         }
         this.data = NLK.api.load();
+        this.rebuildAvgMap();
         this.closeModal('inventory');
       },
       deletePart(item) {
         if (confirm('Hapus ' + item.nama + '?')) {
           NLK.api.deletePart(item.id);
           this.data = NLK.api.load();
+          this.rebuildAvgMap();
         }
       },
 
-      // Mass Import CSV/Excel
       processCSVImport() {
         if (!this.csvText.trim()) { alert('Data CSV kosong'); return; }
         const items = NLK.parseCSV(this.csvText);
@@ -460,6 +466,7 @@ document.addEventListener('alpine:init', function() {
         });
 
         this.data = NLK.api.load();
+        this.rebuildAvgMap();
         this.importProgress = 'Berhasil mengimpor ' + count + ' item baru!';
         setTimeout(function() {
           self.closeModal('importCSV');
@@ -477,7 +484,6 @@ document.addEventListener('alpine:init', function() {
         reader.readAsText(file);
       },
 
-      // Sales actions
       saveSale() {
         const f = this.form.sales;
         if (!f.sku || !f.jumlah || !f.tanggal) { alert('Lengkapi data penjualan'); return; }
@@ -491,10 +497,10 @@ document.addEventListener('alpine:init', function() {
         part.stok -= f.jumlah;
         NLK.api.updatePart(part);
         this.data = NLK.api.load();
+        this.rebuildAvgMap();
         this.closeModal('sales');
       },
 
-      // PO actions
       addPOItem() {
         const it = this.poNewItem;
         if (!it.sku || it.qty <= 0) { alert('Pilih SKU dan jumlah'); return; }
@@ -547,7 +553,6 @@ document.addEventListener('alpine:init', function() {
         this.data = NLK.api.load();
       },
 
-      // Quick PO
       savePOQuick(item) {
         const supplier = this.suppliers[0];
         const qty = item._reorderQty || 50;
@@ -578,7 +583,6 @@ document.addEventListener('alpine:init', function() {
           .reduce((sum, p) => sum + (p.items || []).filter(i => i.sku === item.id).reduce((s2, i) => s2 + i.qty, 0), 0);
       },
 
-      // Sales table helpers
       salesWithName() {
         return this.sales.slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal)).map(s => {
           const part = this.inventory.find(i => i.id === s.sku);
@@ -586,7 +590,6 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // Settings
       saveSettings() {
         NLK.api.updateSettings(this.settings);
         alert('Pengaturan disimpan');
@@ -595,10 +598,10 @@ document.addEventListener('alpine:init', function() {
         if (confirm('Reset semua data ke contoh 150 item awal?')) {
           NLK.api.save(NLK.SEED);
           this.data = NLK.api.load();
+          this.rebuildAvgMap();
         }
       },
 
-      // Formatting
       fmtRp: NLK.fmtRp,
       fmtDate: NLK.fmtDate,
       stockStatusBg: NLK.statusBg,
