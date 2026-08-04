@@ -136,7 +136,8 @@ function jsonResponse(data) {
 
 // === SEED DATA: 150 Item, 90 Hari Sales, 2 PO ===
 
-function seedAllData(ss) {
+function seedAllData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   // Clear existing data
   var sheets = ['Inventory', 'Sales', 'PurchaseOrders', 'Suppliers'];
   sheets.forEach(function(name) {
