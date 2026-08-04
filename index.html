@@ -440,12 +440,15 @@
           <input type="text" x-model="settings.appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-dark-700 border border-dark-600 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
         </div>
         <div class="flex justify-between items-center pt-4 border-t border-dark-600">
-          <button @click="saveSettings()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold transition">Simpan Pengaturan</button>
+          <button @click="saveSettings(); syncNow()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold transition">Simpan & Sync</button>
           <div class="flex gap-3">
-            <button @click="NLK.api.exportData()" class="text-xs text-indigo-400 hover:text-indigo-300"><i class="fas fa-download mr-1"></i>Export Data</button>
-            <label class="text-xs text-indigo-400 hover:text-indigo-300 cursor-pointer"><input type="file" accept=".json" @change="NLK.api.importData($event.target.files[0])" class="hidden"><i class="fas fa-upload mr-1"></i>Import JSON</label>
-            <button @click="resetDemo()" class="text-xs text-red-400 hover:text-red-300"><i class="fas fa-undo mr-1"></i>Reset Demo</button>
+            <button @click="syncNow()" class="text-xs bg-dark-600 hover:bg-dark-500 text-gray-300 px-3 py-1.5 rounded-lg transition">
+              <i class="fas fa-sync-alt mr-1"></i>Sync Sekarang
+            </button>
+            <span x-show="syncStatus" class="text-xs text-indigo-400" x-text="syncStatus"></span>
+            <button @click="NLK.api.exportData()" class="text-xs text-indigo-400 hover:text-indigo-300"><i class="fas fa-download mr-1"></i>Export</button>
           </div>
+        </div>
         </div>
       </div>
       <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">

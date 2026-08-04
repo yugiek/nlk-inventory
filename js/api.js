@@ -8,23 +8,29 @@ const API = {
     if (!localStorage.getItem(this.STORAGE_KEY)) {
       this.save(NLK.SEED);
     }
-    // Coba sinkron dari Google Sheets jika URL sudah dikonfigurasi
+    // Force update URL Apps Script jika masih pakai URL lama
+    var data = this.load();
+    var newUrl = 'https://script.google.com/macros/s/AKfycbwsikqVD516dY_QVIrwAbwOHIXgyuNFe_L4rhZzA6xrsUM97M-VAx8lgQVPd5uC7cSCpw/exec';
+    if (!data.settings) data.settings = {};
+    data.settings.appsScriptUrl = newUrl;
+    if (!data.settings.kursCNYtoIDR) data.settings.kursCNYtoIDR = 16500;
+    if (!data.settings.safetyStockDays) data.settings.safetyStockDays = 7;
+    this.save(data);
+    // Sync dari Sheets
     this.syncFromRemote();
   },
 
   load() {
     try {
-      return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || NLK.SEED;
+      return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || JSON.parse(JSON.stringify(NLK.SEED));
     } catch (e) {
-      return NLK.SEED;
+      return JSON.parse(JSON.stringify(NLK.SEED));
     }
   },
 
   save(data) {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
   },
-
-  // === Remote (Google Sheets via Apps Script) ===
 
   remoteUrl() {
     var data = this.load();
@@ -41,59 +47,44 @@ const API = {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: action, payload: payload || {} })
       });
-      var json = await res.json();
-      if (json && json.status === 'error') {
-        console.warn('Apps Script error:', json.message);
-        return null;
-      }
-      return json;
+      return await res.json();
     } catch (e) {
-      console.warn('Remote sync gagal, pakai data lokal.', e);
+      console.warn('Remote POST gagal:', e);
       return null;
     }
   },
 
-  // Pull semua data dari spreadsheet ke localStorage
   async syncFromRemote() {
     var url = this.remoteUrl();
-    if (!url) return;
+    if (!url) {
+      console.warn('Tidak ada URL Apps Script, pakai data lokal.');
+      return;
+    }
     try {
-      var res = await fetch(url + '?action=getAll', { method: 'GET' });
+      var res = await fetch(url + '?action=getAll');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       var json = await res.json();
-      if (json && json.status === 'ok' && json.inventory) {
+      if (json && json.status === 'ok') {
         var data = this.load();
-        data.inventory = normalizeRows(json.inventory);
-        data.sales = normalizeRows(json.sales);
-        data.purchaseOrders = normalizePOs(json.purchaseOrders);
-        data.suppliers = normalizeRows(json.suppliers);
+        data.inventory = normalizeRows(json.inventory || []);
+        data.sales = normalizeRows(json.sales || []);
+        data.purchaseOrders = normalizePOs(json.purchaseOrders || [], data.inventory);
+        data.suppliers = normalizeRows(json.suppliers || []);
         this.save(data);
         window.dispatchEvent(new CustomEvent('nlk-data-changed'));
-        console.log('Data berhasil di-sync dari Google Sheets:', data.inventory.length, 'item');
+        console.log('Sync dari Sheets OK:', (json.inventory||[]).length, 'item,', (json.sales||[]).length, 'sales');
+      } else {
+        console.warn('Sheets response:', json);
       }
     } catch (e) {
-      console.warn('Sync awal gagal, gunakan data lokal.', e);
+      console.warn('Sync dari Sheets gagal:', e.message, '— pakai data lokal.');
     }
   },
 
-  // Push full dataset ke spreadsheet (untuk seed/sync satu arah)
-  async pushAll() {
-    var url = this.remoteUrl();
-    if (!url) return false;
-    var data = this.load();
-    var ok = true;
-    for (var i = 0; i < (data.inventory || []).length; i++) {
-      var r = await this.request('addPart', data.inventory[i]);
-      if (!r) ok = false;
-    }
-    return ok;
-  },
-
-  // === Inventory ===
   addPart(part) {
     var item = Object.assign({}, part, {
       id: part.id || NLK.genId('NLK'),
-      aktif: (part.aktif === undefined) ? true : part.aktif,
-      createdAt: new Date().toISOString()
+      aktif: (part.aktif === undefined) ? true : part.aktif
     });
     var data = this.load();
     data.inventory = data.inventory || [];
@@ -119,9 +110,8 @@ const API = {
     this.request('deletePart', { id: id });
   },
 
-  // === Sales ===
   addSale(sale) {
-    var s = Object.assign({}, sale, { id: sale.id || NLK.genId('SALE'), createdAt: new Date().toISOString() });
+    var s = Object.assign({}, sale, { id: sale.id || NLK.genId('SALE') });
     var data = this.load();
     data.sales = data.sales || [];
     data.sales.push(s);
@@ -130,13 +120,10 @@ const API = {
     return s;
   },
 
-  // === Purchase Orders ===
   createPO(po) {
     var p = Object.assign({}, po, {
       id: po.id || NLK.genId('PO'),
-      createdAt: new Date().toISOString(),
-      status: po.status || 'ordered',
-      inTransit: po.status === 'shipped' || po.status === 'in transit'
+      status: po.status || 'ordered'
     });
     var data = this.load();
     data.purchaseOrders = data.purchaseOrders || [];
@@ -151,22 +138,19 @@ const API = {
     data.purchaseOrders = (data.purchaseOrders || []).map(function(po) {
       if (po.id !== id) return po;
       var updated = Object.assign({}, po, { status: status });
-      if (status === 'shipped') updated.inTransit = true;
-      if (status === 'arrived') { updated.inTransit = false; updated.receivedAt = new Date().toISOString(); }
+      if (status === 'arrived') updated.receivedAt = new Date().toISOString();
       return updated;
     });
     this.save(data);
     this.request('updatePO', { id: id, status: status });
   },
 
-  // === Settings ===
   updateSettings(newSettings) {
     var data = this.load();
     data.settings = Object.assign({}, data.settings, newSettings);
     this.save(data);
   },
 
-  // === Backup ===
   exportData() {
     var data = this.load();
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -187,8 +171,8 @@ const API = {
         var current = self.load();
         var merged = Object.assign({}, current, imported);
         self.save(merged);
-        alert('Data berhasil di-import');
         window.dispatchEvent(new CustomEvent('nlk-data-changed'));
+        alert('Data berhasil di-import');
       } catch (err) {
         alert('Gagal mengimpor: format tidak valid');
       }
@@ -199,7 +183,7 @@ const API = {
 
 NLK.api = API;
 
-// === Normalization helpers ===
+// === Normalization ===
 
 function normalizeRows(rows) {
   if (!rows || !rows.length) return [];
@@ -207,29 +191,32 @@ function normalizeRows(rows) {
     var out = {};
     for (var k in r) {
       var v = r[k];
-      if (v === 'TRUE') v = true;
-      else if (v === 'FALSE') v = false;
-      else if (typeof v === 'string' && v !== '' && !isNaN(v) && !/^[0-9]{4}-[0-9]{2}/.test(v)) v = Number(v);
+      if (v === 'TRUE' || v === true) v = true;
+      else if (v === 'FALSE' || v === false) v = false;
+      else if (typeof v === 'string' && v !== '' && !isNaN(v) && v.indexOf('.') === -1 && v.indexOf('-') === -1) {
+        v = Number(v);
+      } else if (typeof v === 'string' && v.indexOf('.') !== -1 && v.indexOf('-') === -1 && !isNaN(v)) {
+        v = parseFloat(v);
+      }
       out[k] = v;
     }
     return out;
   });
 }
 
-// PO items di spreadsheet disimpan sebagai string "SKU:qty,SKU:qty" -> ubah ke array objek
-function normalizePOs(rows) {
+function normalizePOs(rows, inventory) {
   var list = normalizeRows(rows);
   return list.map(function(po) {
     var items = [];
     if (typeof po.items === 'string' && po.items) {
       po.items.split(',').forEach(function(part) {
-        var parts = part.split(':');
-        if (parts.length === 2) {
-          var inv = NLK.api.load().inventory || [];
-          var found = inv.find(function(i) { return i.id === parts[0].trim(); });
+        var p = part.split(':');
+        if (p.length === 2) {
+          var sku = p[0].trim();
+          var found = (inventory || []).find(function(i) { return i.id === sku; });
           items.push({
-            sku: parts[0].trim(),
-            qty: Number(parts[1]) || 1,
+            sku: sku,
+            qty: Number(p[1]) || 1,
             hargaBeliCNY: found ? found.hargaBeliCNY : 0
           });
         }

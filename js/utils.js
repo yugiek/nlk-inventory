@@ -170,9 +170,9 @@ function generateDummyPOs(inventory) {
 }
 
 NLK.SEED = {
-  inventory: null,
-  sales: null,
-  purchaseOrders: null,
+  inventory: [],
+  sales: [],
+  purchaseOrders: [],
   suppliers: [
     { id: 'SUP-001', nama: 'Guangzhou Auto Parts Co.', negara: 'China', kontak: 'Mr. Chen - WeChat: chen_auto', leadTimeDefault: 30 },
     { id: 'SUP-002', nama: 'Shenzhen Precision Parts Ltd', negara: 'China', kontak: 'Ms. Wang - wang@szparts.cn', leadTimeDefault: 25 },
@@ -181,7 +181,7 @@ NLK.SEED = {
   settings: {
     kursCNYtoIDR: 16500,
     safetyStockDays: 7,
-    appsScriptUrl: 'https://script.google.com/macros/s/1WtlpMyIs9URrJVf1SgRB5xWwCYIo6cW6xp4eFFF-mjc/exec'
+    appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwsikqVD516dY_QVIrwAbwOHIXgyuNFe_L4rhZzA6xrsUM97M-VAx8lgQVPd5uC7cSCpw/exec'
   }
 };
 

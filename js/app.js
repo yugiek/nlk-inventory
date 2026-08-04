@@ -31,6 +31,20 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
+      async syncNow() {
+        this.syncStatus = 'Sync...';
+        if (NLK.api.remoteUrl()) {
+          await NLK.api.syncFromRemote();
+          this.data = NLK.api.load();
+          this.syncStatus = 'Sinkronisasi berhasil: ' + (this.data.inventory || []).length + ' item';
+          setTimeout(() => { this.syncStatus = ''; }, 3000);
+        } else {
+          this.syncStatus = 'URL Apps Script belum diisi di Settings';
+        }
+      },
+
+      syncStatus: '',
+
       // Getters
       get inventory() { return this.data.inventory || []; },
       get sales() { return this.data.sales || []; },

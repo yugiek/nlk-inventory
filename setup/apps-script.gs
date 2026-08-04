@@ -2,8 +2,12 @@
 // Spreadsheet: https://docs.google.com/spreadsheets/d/1WtlpMyIs9URrJVf1SgRB5xWwCYIo6cW6xp4eFFF-mjc/
 
 function doGet(e) {
-  var action = e.parameter ? e.parameter.action : '';
+  var action = '';
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (e && e.parameter) {
+    action = e.parameter.action || '';
+  }
 
   if (action === 'getInventory') {
     return jsonResponse({ status: 'ok', data: getSheetData(ss, 'Inventory') });
@@ -235,25 +239,48 @@ function seedSuppliers(ss) {
   sheet.appendRow(['SUP-003', 'Shanghai Heavy Machinery & Parts', 'China', 'Mr. Liu - info@sh-parts.cn', 35]);
 }
 
-// === Setup: Jalankan ini pertama kali untuk membuat sheet & headers ===
+function syncToLocalStorage() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = {
+    inventory: getSheetData(ss, 'Inventory'),
+    sales: getSheetData(ss, 'Sales'),
+    purchaseOrders: getSheetData(ss, 'PurchaseOrders'),
+    suppliers: getSheetData(ss, 'Suppliers')
+  };
+  var html = HtmlService.createHtmlOutput('<script>localStorage.setItem("nlk_inventory_data", JSON.stringify(' + JSON.stringify(data) + '));window.close();</script>');
+  return html;
+}
 
 function setupSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var existing = ss.getSheetNames();
 
   // Inventory
-  var inv = ss.getSheetByName('Inventory') || ss.insertSheet('Inventory');
+  if (existing.indexOf('Inventory') === -1) {
+    ss.insertSheet('Inventory');
+  }
+  var inv = ss.getSheetByName('Inventory');
   inv.getRange(1, 1, 1, 10).setValues([['id', 'nama', 'kategori', 'stok', 'minStok', 'hargaBeliCNY', 'hargaJual', 'lokasiRak', 'leadTimeHari', 'aktif']]);
 
   // Sales
-  var sales = ss.getSheetByName('Sales') || ss.insertSheet('Sales');
+  if (existing.indexOf('Sales') === -1) {
+    ss.insertSheet('Sales');
+  }
+  var sales = ss.getSheetByName('Sales');
   sales.getRange(1, 1, 1, 5).setValues([['id', 'tanggal', 'sku', 'jumlah', 'hargaJual']]);
 
   // PurchaseOrders
-  var po = ss.getSheetByName('PurchaseOrders') || ss.insertSheet('PurchaseOrders');
+  if (existing.indexOf('PurchaseOrders') === -1) {
+    ss.insertSheet('PurchaseOrders');
+  }
+  var po = ss.getSheetByName('PurchaseOrders');
   po.getRange(1, 1, 1, 8).setValues([['id', 'tanggalOrder', 'supplierId', 'supplierName', 'status', 'estimasiTiba', 'items', 'catatan']]);
 
   // Suppliers
-  var sup = ss.getSheetByName('Suppliers') || ss.insertSheet('Suppliers');
+  if (existing.indexOf('Suppliers') === -1) {
+    ss.insertSheet('Suppliers');
+  }
+  var sup = ss.getSheetByName('Suppliers');
   sup.getRange(1, 1, 1, 5).setValues([['id', 'nama', 'negara', 'kontak', 'leadTimeDefault']]);
 
   Logger.log('Sheets setup complete!');
