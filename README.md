@@ -18,9 +18,9 @@ https://docs.google.com/spreadsheets/d/1WtlpMyIs9URrJVf1SgRB5xWwCYIo6cW6xp4eFFF-
 4. Beri permission yang diminta
 5. Semua sheet (Inventory, Sales, PurchaseOrders, Suppliers) akan dibuat dengan header
 
-### 3. Seed data dummy 150 item
+### 3. Seed data dummy 1 tahun
 1. Di editor Apps Script, pilih fungsi `seedAllData` dan klik **Run**
-150 item sparepart + 90 hari riwayat penjualan + 2 PO akan terisi otomatis.
+150 item sparepart + 365 hari riwayat penjualan + 4 PO akan terisi otomatis sebagai bahan simulasi analisa.
 
 ### 4. Deploy sebagai Web App
 1. Klik **Deploy > New deployment**

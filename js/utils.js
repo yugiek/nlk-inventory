@@ -113,11 +113,15 @@ function generate150DummyParts() {
   var cats = ['Engine', 'Transmission', 'Suspension', 'Electrical', 'Filter', 'Brake', 'Bearing', 'Gasket', 'Belt', 'Body'];
   var parts = [];
   var racks = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2'];
+  var warehouses = ['Surabaya', 'Balikpapan', 'Banjarmasin', 'Makassar'];
+  var brands = ['NLK', 'FCC'];
   
   for (var i = 1; i <= 150; i++) {
     var cat = cats[i % cats.length];
-    var id = 'NLK-' + String(1000 + i);
-    var nama = cat + ' Part Model ' + (100 + i);
+    var brand = brands[i % brands.length];
+    var wh = warehouses[i % warehouses.length];
+    var id = brand + '-' + String(1000 + i);
+    var nama = '[' + brand + '] ' + cat + ' Part Model ' + (100 + i);
     // Bikin beberapa item stok kritis/rendah untuk testing alert reorder
     var stok = (i % 7 === 0) ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 80) + 10;
     var minStok = Math.floor(Math.random() * 15) + 8;
@@ -126,6 +130,9 @@ function generate150DummyParts() {
     jual = Math.round(jual / 5000) * 5000;
     parts.push({
       id: id,
+      sku: id,
+      brand: brand,
+      warehouse: wh,
       nama: nama,
       kategori: cat,
       stok: stok,
@@ -158,7 +165,9 @@ function generateDummySales(inventory) {
       sales.push({
         id: 'SALE-' + Math.floor(100000 + Math.random() * 900000),
         tanggal: dateStr,
-        sku: item.id,
+        sku: item.sku,
+        brand: item.brand,
+        warehouse: item.warehouse,
         jumlah: qty,
         hargaJual: item.hargaJual
       });

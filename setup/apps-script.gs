@@ -138,7 +138,7 @@ function jsonResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// === SEED DATA: 150 Item, 90 Hari Sales, 2 PO ===
+// === SEED DATA: 150 Item, 365 Hari Sales, 4 PO ===
 
 function seedAllData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -188,14 +188,14 @@ function seedInventory(ss, inventory) {
 function seedSales(ss, inventory) {
   var sheet = ss.getSheetByName('Sales');
   var today = new Date();
-  for (var d = 90; d >= 0; d--) {
+  for (var d = 365; d >= 0; d--) {
     var dateObj = new Date(today);
     dateObj.setDate(today.getDate() - d);
     var dateStr = Utilities.formatDate(dateObj, 'Asia/Jakarta', 'yyyy-MM-dd');
-    var txCount = Math.floor(Math.random() * 6) + 3;
+    var txCount = Math.floor(Math.random() * 4) + 2;
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
-      var qty = Math.floor(Math.random() * 3) + 1;
+      var qty = Math.floor(Math.random() * 4) + 1;
       sheet.appendRow([
         'SALE-' + Math.floor(100000 + Math.random() * 900000),
         dateStr, item[0], qty, item[5]
@@ -208,9 +208,13 @@ function seedPO(ss, inventory) {
   var sheet = ss.getSheetByName('PurchaseOrders');
   var today = new Date();
   var eta1 = new Date(today); eta1.setDate(today.getDate() + 5);
-  var eta2 = new Date(today); eta2.setDate(today.getDate() + 12);
-  var order1 = new Date(today); order1.setDate(today.getDate() - 20);
-  var order2 = new Date(today); order2.setDate(today.getDate() - 10);
+  var eta2 = new Date(today); eta2.setDate(today.getDate() + 10);
+  var eta3 = new Date(today); eta3.setDate(today.getDate() + 28);
+  var eta4 = new Date(today); eta4.setDate(today.getDate() - 15);
+  var order1 = new Date(today); order1.setDate(today.getDate() - 25);
+  var order2 = new Date(today); order2.setDate(today.getDate() - 12);
+  var order3 = new Date(today); order3.setDate(today.getDate() - 3);
+  var order4 = new Date(today); order4.setDate(today.getDate() - 45);
 
   sheet.appendRow([
     'PO-2026-001',
@@ -218,7 +222,7 @@ function seedPO(ss, inventory) {
     'SUP-001', 'Guangzhou Auto Parts Co.',
     'shipped',
     Utilities.formatDate(eta1, 'Asia/Jakarta', 'yyyy-MM-dd'),
-    inventory[0][0] + ':' + 50 + ',' + inventory[1][0] + ':' + 100,
+    inventory[0][0] + ':' + 100 + ',' + inventory[1][0] + ':' + 150,
     'Pengiriman via laut - Container #CN-8821'
   ]);
   sheet.appendRow([
@@ -227,8 +231,26 @@ function seedPO(ss, inventory) {
     'SUP-002', 'Shenzhen Precision Parts Ltd',
     'in transit',
     Utilities.formatDate(eta2, 'Asia/Jakarta', 'yyyy-MM-dd'),
-    inventory[4][0] + ':' + 40,
+    inventory[6][0] + ':' + 60 + ',' + inventory[7][0] + ':' + 80,
     'Express air shipping'
+  ]);
+  sheet.appendRow([
+    'PO-2026-003',
+    Utilities.formatDate(order3, 'Asia/Jakarta', 'yyyy-MM-dd'),
+    'SUP-003', 'Shanghai Heavy Machinery & Parts',
+    'ordered',
+    Utilities.formatDate(eta3, 'Asia/Jakarta', 'yyyy-MM-dd'),
+    inventory[13][0] + ':' + 200,
+    'Order baru - Menunggu konfirmasi kapal'
+  ]);
+  sheet.appendRow([
+    'PO-2026-004',
+    Utilities.formatDate(order4, 'Asia/Jakarta', 'yyyy-MM-dd'),
+    'SUP-001', 'Guangzhou Auto Parts Co.',
+    'arrived',
+    Utilities.formatDate(eta4, 'Asia/Jakarta', 'yyyy-MM-dd'),
+    inventory[2][0] + ':' + 120,
+    'Barang sudah masuk gudang'
   ]);
 }
 

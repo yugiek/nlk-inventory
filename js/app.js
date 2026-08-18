@@ -10,8 +10,10 @@ document.addEventListener('alpine:init', function() {
       sidebarCollapsed: false,
       data: NLK.api.load(),
       searchQuery: '',
-      selectedCategory: 'all',
-      showModal: { inventory: false, sales: false, po: false, partDetail: false, importCSV: false },
+       selectedCategory: 'all',
+       selectedBrand: 'ALL',
+       selectedWarehouse: 'ALL',
+       showModal: { inventory: false, sales: false, po: false, partDetail: false, importCSV: false },
       form: { inventory: {}, sales: {}, po: {}, poItems: [] },
       poDraft: { supplierId: '', items: [] },
       poNewItem: { sku: '', qty: 1 },
@@ -114,14 +116,16 @@ document.addEventListener('alpine:init', function() {
         return sortObj.dir === 'asc' ? 'fa-sort-up text-indigo-400' : 'fa-sort-down text-indigo-400';
       },
 
-      get filteredInventory() {
-        const q = this.searchQuery.toLowerCase();
-        var self = this;
-        var list = this.inventory.filter(i => {
-          const matchQ = !q || i.nama.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || (i.lokasiRak || '').toLowerCase().includes(q);
-          const matchC = this.selectedCategory === 'all' || i.kategori === this.selectedCategory;
-          return matchQ && matchC;
-        });
+       get filteredInventory() {
+         const q = this.searchQuery.toLowerCase();
+         var self = this;
+         var list = this.inventory.filter(i => {
+           const matchQ = !q || i.nama.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || (i.lokasiRak || '').toLowerCase().includes(q);
+           const matchC = this.selectedCategory === 'all' || i.kategori === this.selectedCategory;
+           const matchB = this.selectedBrand === 'ALL' || i.brand === this.selectedBrand;
+           const matchW = this.selectedWarehouse === 'ALL' || i.warehouse === this.selectedWarehouse;
+           return matchQ && matchC && matchB && matchW;
+         });
         var col = this.sortInv.col;
         var dir = this.sortInv.dir === 'asc' ? 1 : -1;
         return list.sort(function(a, b) {
@@ -192,48 +196,107 @@ document.addEventListener('alpine:init', function() {
         return qty > 0 ? Math.ceil(qty) : 0;
       },
 
-      get stats() {
-        const inv = this.inventory, sales = this.sales, kurs = this.settings.kursCNYtoIDR || 16500;
-        const invValue = inv.reduce((sum, i) => sum + (i.stok * (i.hargaBeliCNY || 0) * kurs), 0);
-        const totalSold = sales.reduce((sum, s) => sum + s.jumlah, 0);
-        const revenue = sales.reduce((sum, s) => sum + (s.jumlah * s.hargaJual), 0);
-        const lowStock = inv.filter(i => this.itemStatus(i) === 'critical').length;
-        const inTransit = this.pos.filter(p => p.status === 'in transit' || p.status === 'shipped').length;
-        return { invValue, totalSold, revenue, lowStock, inTransit };
-      },
+       get stats() {
+         var inv = this.inventory;
+         if (this.selectedBrand !== 'ALL') inv = inv.filter(i => i.brand === this.selectedBrand);
+         if (this.selectedWarehouse !== 'ALL') inv = inv.filter(i => i.warehouse === this.selectedWarehouse);
+
+         var sales = this.sales;
+         if (this.selectedBrand !== 'ALL') sales = sales.filter(s => s.brand === this.selectedBrand);
+         if (this.selectedWarehouse !== 'ALL') sales = sales.filter(s => s.warehouse === this.selectedWarehouse);
+
+         const kurs = this.settings.kursCNYtoIDR || 16500;
+         const invValue = inv.reduce((sum, i) => sum + (i.stok * (i.hargaBeliCNY || 0) * kurs), 0);
+         const totalSold = sales.reduce((sum, s) => sum + s.jumlah, 0);
+         const revenue = sales.reduce((sum, s) => sum + (s.jumlah * s.hargaJual), 0);
+         const lowStock = inv.filter(i => this.itemStatus(i) === 'critical').length;
+         const inTransit = this.pos.filter(p => p.status === 'in transit' || p.status === 'shipped').length;
+         return { invValue, totalSold, revenue, lowStock, inTransit };
+       },
 
       get topMoving() {
         const counts = {}; this.sales.forEach(s => { if (!counts[s.sku]) counts[s.sku] = 0; counts[s.sku] += s.jumlah; });
         return Object.keys(counts).map(sku => { var item = this.inventory.find(i => i.id === sku); return { sku, nama: item ? item.nama : sku, qty: counts[sku] }; }).sort((a, b) => b.qty - a.qty).slice(0, 5);
       },
 
-      get activePOs() { return this.pos.filter(p => p.status !== 'arrived' && p.status !== 'cancelled'); },
+       get activePOs() { return this.pos.filter(p => p.status !== 'arrived' && p.status !== 'cancelled'); },
+       
+       get urgentReorderList() {
+         var self = this;
+         return this.inventory.filter(i => {
+           var matchBrand = self.selectedBrand === 'ALL' || i.brand === self.selectedBrand;
+           var matchWH = self.selectedWarehouse === 'ALL' || i.warehouse === self.selectedWarehouse;
+           return matchBrand && matchWH && self.itemStatus(i) === 'critical';
+         }).sort((a,b) => (a.stok/this.itemAvg(a)) - (b.stok/this.itemAvg(b)));
+       },
 
-      // ==== CHART LOGIC ====
+       warehouseStats(wh) {
+         var list = this.inventory.filter(i => i.warehouse === wh);
+         if (this.selectedBrand !== 'ALL') list = list.filter(i => i.brand === this.selectedBrand);
+         var invValue = list.reduce((sum, i) => sum + (i.stok * (i.hargaBeliCNY || 0) * (this.settings.kursCNYtoIDR || 16500)), 0);
+         var criticalCount = list.filter(i => this.itemStatus(i) === 'critical').length;
+         return { invValue, totalItems: list.reduce((s,i)=>s+i.stok,0), criticalCount };
+       },
+
+       warehouseStockStatus(wh) {
+         var stats = this.warehouseStats(wh);
+         return stats.criticalCount > 0 ? 'critical' : 'ok';
+       },
+
+       // ==== CHART LOGIC ====
       evalRanges() { return { mingguan: { buckets: 7, days: 1 }, bulanan: { buckets: 4, days: 7 }, kuartal: { buckets: 3, days: 30 }, semester: { buckets: 6, days: 30 }, tahunan: { buckets: 12, days: 30 } }; },
-      evalPeriodData() {
-        var cfg = this.evalRanges()[this.evalPeriod] || this.evalRanges().bulanan, labels = [], q = [], r = [], today = new Date();
-        for (var b = 0; b < cfg.buckets; b++) {
-          var end = new Date(today); end.setDate(today.getDate() - (b * cfg.days));
-          var start = new Date(end); start.setDate(end.getDate() - cfg.days + 1);
-          labels.push(this.evalPeriod === 'mingguan' ? end.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'P' + (cfg.buckets - b));
-          var pSales = this.sales.filter(s => s.tanggal >= start.toISOString().slice(0,10) && s.tanggal <= end.toISOString().slice(0,10));
-          q.push(pSales.reduce((s, x) => s + (x.jumlah || 0), 0));
-          r.push(pSales.reduce((s, x) => s + (x.jumlah * x.hargaJual), 0));
-        }
-        return { labels: labels.reverse(), salesQty: q.reverse(), salesRevenue: r.reverse() };
-      },
-      renderEvalCharts() {
-        var data = this.evalPeriodData(), self = this;
-        [['salesQty', '#818cf8', 'rgba(99,102,241,0.3)', 'Qty'], ['salesRevenue', '#22d3ee', 'rgba(34,211,238,0.3)', 'Rp']].forEach(c => {
-          var el = document.getElementById('evalChart_' + c[0]); if (!el) return;
-          if (self.chartInstances[c[0]]) self.chartInstances[c[0]].destroy();
-          self.chartInstances[c[0]] = new Chart(el.getContext('2d'), {
-            type: 'bar', data: { labels: data.labels, datasets: [{ label: c[3], data: data[c[0]], backgroundColor: c[2], borderColor: c[1], borderWidth: 2, borderRadius: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#f1f5f9' } } }, scales: { x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(51,65,85,0.3)' } }, y: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(51,65,85,0.3)' }, beginAtZero: true } } }
-          });
-        });
-      },
+       evalPeriodData() {
+         var cfg = this.evalRanges()[this.evalPeriod] || this.evalRanges().bulanan, labels = [], q = [], r = [], today = new Date();
+         for (var b = 0; b < cfg.buckets; b++) {
+           var end = new Date(today); end.setDate(today.getDate() - (b * cfg.days));
+           var start = new Date(end); start.setDate(end.getDate() - cfg.days + 1);
+           labels.push(this.evalPeriod === 'mingguan' ? end.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'P' + (cfg.buckets - b));
+           
+           var pSales = this.sales.filter(s => {
+             var matchDate = s.tanggal >= start.toISOString().slice(0,10) && s.tanggal <= end.toISOString().slice(0,10);
+             var matchBrand = this.selectedBrand === 'ALL' || s.brand === this.selectedBrand;
+             var matchWH = this.selectedWarehouse === 'ALL' || s.warehouse === this.selectedWarehouse;
+             return matchDate && matchBrand && matchWH;
+           });
+           
+           q.push(pSales.reduce((s, x) => s + (x.jumlah || 0), 0));
+           r.push(pSales.reduce((s, x) => s + (x.jumlah * x.hargaJual), 0));
+         }
+         return { labels: labels.reverse(), salesQty: q.reverse(), salesRevenue: r.reverse() };
+       },
+       renderEvalCharts() {
+         var data = this.evalPeriodData(), self = this;
+         [['salesQty', '#818cf8', 'rgba(99,102,241,0.1)', 'Qty'], ['salesRevenue', '#22d3ee', 'rgba(34,211,238,0.1)', 'Rp']].forEach(c => {
+           var el = document.getElementById('evalChart_' + c[0]); if (!el) return;
+           if (self.chartInstances[c[0]]) self.chartInstances[c[0]].destroy();
+           self.chartInstances[c[0]] = new Chart(el.getContext('2d'), {
+             type: 'line', 
+             data: { 
+               labels: data.labels, 
+               datasets: [{ 
+                 label: c[3], 
+                 data: data[c[0]], 
+                 backgroundColor: c[2], 
+                 borderColor: c[1], 
+                 borderWidth: 3, 
+                 fill: true,
+                 tension: 0.4,
+                 pointRadius: 4,
+                 pointBackgroundColor: c[1]
+               }] 
+             },
+             options: { 
+               responsive: true, 
+               maintainAspectRatio: false, 
+               plugins: { legend: { display: false } }, 
+               scales: { 
+                 x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } }, 
+                 y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.2)', borderDash: [4,4] }, beginAtZero: true } 
+               } 
+             }
+           });
+         });
+       },
 
       evalSummary() {
         var self = this;
