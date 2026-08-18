@@ -14,7 +14,26 @@
   <style>
     [x-cloak] { display: none !important; }
     input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .sidebar-item.active { background: rgba(99, 102, 241, 0.15); color: #818cf8; border-left: 3px solid #6366f1; }
+    .sidebar-item.active { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+    aside button[title] { position: relative; }
+    aside button[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      left: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      z-index: 100;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #020617; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
@@ -34,26 +53,47 @@
 <div class="flex h-screen overflow-hidden">
 
   <!-- ========== SIDEBAR ========== -->
-  <aside :class="sidebarCollapsed ? 'w-16' : 'w-64'" class="bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300 no-print">
-    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-      <h1 :class="sidebarCollapsed ? 'hidden' : 'flex'" class="text-xl font-bold text-indigo-400 items-center gap-2">
-        <i class="fas fa-cube"></i> <span class="whitespace-nowrap">NLK Inventory</span>
-      </h1>
-      <div x-show="sidebarCollapsed" class="mx-auto text-indigo-400"><i class="fas fa-cube text-xl"></i></div>
+  <aside :class="sidebarCollapsed ? 'w-[68px]' : 'w-64'" class="bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300 no-print">
+    <!-- Logo Header -->
+    <div :class="sidebarCollapsed ? 'px-2 py-4 justify-center' : 'px-4 py-4'" class="border-b border-slate-800 flex items-center">
+      <div :class="sidebarCollapsed ? 'w-10 h-10' : 'w-8 h-8'" class="rounded-lg bg-indigo-500/15 flex items-center justify-center shrink-0 transition-all">
+        <i class="fas fa-cube text-indigo-400 text-lg"></i>
+      </div>
+      <h1 x-show="!sidebarCollapsed" class="text-xl font-bold text-indigo-400 ml-2 whitespace-nowrap overflow-hidden">NLK Inventory</h1>
     </div>
-    <button @click="toggleSidebar()" class="mx-3 mt-2 flex items-center justify-center py-1.5 text-xs text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition border border-slate-800">
-      <i :class="sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+
+    <!-- Toggle Button -->
+    <button @click="toggleSidebar()" :class="sidebarCollapsed ? 'mx-2 mt-3 mb-1 justify-center' : 'mx-3 mt-3 mb-1'" class="flex items-center py-1.5 text-slate-500 hover:text-indigo-400 hover:bg-slate-800/60 rounded-lg transition text-[11px] gap-2 border border-slate-800/50">
+      <i :class="sidebarCollapsed ? 'fas fa-angles-right' : 'fas fa-angles-left'" class="w-4 text-center"></i>
+      <span x-show="!sidebarCollapsed" class="font-medium">Collapse</span>
     </button>
-    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+
+    <!-- Nav Items -->
+    <nav class="flex-1 px-2 py-2 space-y-1 overflow-y-auto">
       <template x-for="item in [{id:'dashboard',label:'Dashboard',icon:'fa-chart-pie'},{id:'inventory',label:'Inventory',icon:'fa-box'},{id:'sales',label:'Penjualan',icon:'fa-receipt'},{id:'po',label:'Purchase Order',icon:'fa-truck'},{id:'reorder',label:'Reorder',icon:'fa-exclamation-circle'},{id:'laporan',label:'Laporan',icon:'fa-file-alt'}]">
-        <button @click="setPage(item.id)" :class="page === item.id ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition" :title="sidebarCollapsed ? item.label : ''" :style="sidebarCollapsed ? 'justify-content:center;padding:0' : ''">
-          <i :class="'fas '+item.icon+' w-5 text-center'"></i><span x-show="!sidebarCollapsed" x-text="item.label"></span>
+        <button @click="setPage(item.id)"
+          :class="[
+            page === item.id ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
+            sidebarCollapsed ? 'justify-center' : 'px-3'
+          ]"
+          class="w-full flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+          :title="item.label">
+          <i :class="'fas ' + item.icon" class="w-5 text-center text-[15px] shrink-0"></i>
+          <span x-show="!sidebarCollapsed" x-text="item.label" class="whitespace-nowrap overflow-hidden"></span>
         </button>
       </template>
     </nav>
-    <div class="p-3 border-t border-slate-800">
-      <button @click="setPage('settings')" :class="page === 'settings' ? 'sidebar-item active' : 'text-slate-400 hover:bg-slate-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition" :style="sidebarCollapsed ? 'justify-content:center;padding:0' : ''">
-        <i class="fas fa-cog w-5 text-center"></i><span x-show="!sidebarCollapsed">Pengaturan</span>
+
+    <!-- Bottom Settings -->
+    <div class="px-2 pb-3 pt-2 border-t border-slate-800 space-y-1">
+      <button @click="setPage('settings')"
+        :class="[
+          page === 'settings' ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
+          sidebarCollapsed ? 'justify-center' : 'px-3'
+        ]"
+        class="w-full flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-all">
+        <i class="fas fa-cog w-5 text-center text-[15px] shrink-0"></i>
+        <span x-show="!sidebarCollapsed" class="whitespace-nowrap overflow-hidden">Pengaturan</span>
       </button>
     </div>
   </aside>
@@ -63,14 +103,74 @@
 
     <!-- ===== DASHBOARD (Merged with Analytics) ===== -->
     <div x-show="page === 'dashboard'" class="p-6 space-y-6">
-      <div class="flex justify-between items-center">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 class="text-2xl font-bold text-white">Dashboard & Analitik</h2>
-          <p class="text-xs text-slate-500 mt-1">Performa <span class="capitalize" x-text="evalPeriod"></span> — <span x-text="currentMonthName"></span></p>
+          <h2 class="text-2xl font-bold text-white">Dashboard Nasional NLK & FCC</h2>
+          <p class="text-xs text-slate-500 mt-1">Multi-Warehouse Monitoring — <span x-text="currentMonthName"></span></p>
         </div>
-        <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-1 no-print">
-          <template x-for="p in ['mingguan','bulanan','kuartal','semester','tahunan']">
-            <button @click="evalPeriod = p" :class="evalPeriod === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'" class="px-3 py-1 rounded-md text-xs font-medium transition-all capitalize" x-text="p"></button>
+        <div class="flex flex-wrap items-center gap-3 no-print">
+          <!-- Brand Switcher -->
+          <div class="flex bg-slate-950 border border-slate-800 rounded-lg p-1">
+            <template x-for="b in ['ALL', 'NLK', 'FCC']">
+              <button @click="selectedBrand = b" :class="selectedBrand === b ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all" x-text="b === 'ALL' ? 'Semua Brand' : b"></button>
+            </template>
+          </div>
+          <!-- Warehouse Selector -->
+          <select x-model="selectedWarehouse" class="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-500">
+            <option value="ALL">📍 Semua Warehouse (Nasional)</option>
+            <option value="Surabaya">Surabaya (HQ)</option>
+            <option value="Balikpapan">Balikpapan</option>
+            <option value="Banjarmasin">Banjarmasin</option>
+            <option value="Makassar">Makassar</option>
+          </select>
+          <!-- Period Selector -->
+          <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-1">
+            <template x-for="p in ['mingguan','bulanan','kuartal','semester','tahunan']">
+              <button @click="evalPeriod = p" :class="evalPeriod === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'" class="px-3 py-1 rounded-md text-xs font-medium transition-all capitalize" x-text="p"></button>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Warehouse Breakdown Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <template x-for="wh in ['Surabaya', 'Balikpapan', 'Banjarmasin', 'Makassar']">
+          <div @click="selectedWarehouse = wh" :class="selectedWarehouse === wh ? 'border-indigo-500 bg-indigo-950/20' : 'border-slate-800 bg-slate-900'" class="rounded-xl border p-4 cursor-pointer hover:border-indigo-500/50 transition shadow-sm">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5"><i class="fas fa-warehouse text-indigo-400"></i> <span x-text="wh"></span></span>
+              <span class="w-2 h-2 rounded-full" :class="warehouseStockStatus(wh) === 'critical' ? 'bg-red-400 animate-ping' : 'bg-emerald-400'"></span>
+            </div>
+            <p class="text-lg font-black text-white" x-text="fmtRp(warehouseStats(wh).invValue)"></p>
+            <div class="flex justify-between items-center mt-2 text-[10px] text-slate-400">
+              <span>Stok: <strong class="text-slate-200" x-text="warehouseStats(wh).totalItems + ' pcs'"></strong></span>
+              <span class="text-red-400 font-bold" x-show="warehouseStats(wh).criticalCount > 0" x-text="warehouseStats(wh).criticalCount + ' kritis'"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Urgent Reorder Highlight Banner -->
+      <div x-show="urgentReorderList.length > 0" class="bg-gradient-to-r from-red-950/40 via-slate-900 to-slate-900 border border-red-500/30 rounded-xl p-5 shadow-lg">
+        <div class="flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 font-bold"><i class="fas fa-exclamation-triangle"></i></div>
+            <div>
+              <h3 class="text-sm font-bold text-red-400 uppercase tracking-wider">Highlight Stok Di Bawah Batas (Urgent Reorder)</h3>
+              <p class="text-xs text-slate-400">Item berikut sudah melewati batas reorder dan memerlukan pemesanan segera ke supplier.</p>
+            </div>
+          </div>
+          <button @click="setPage('reorder')" class="text-xs bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">Kelola Reorder →</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+          <template x-for="item in urgentReorderList.slice(0, 3)">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
+              <div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase" :class="item.brand === 'NLK' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-cyan-500/20 text-cyan-300'" x-text="item.brand"></span>
+                <p class="text-xs font-bold text-slate-200 mt-1 truncate max-w-[180px]" x-text="item.nama"></p>
+                <p class="text-[10px] text-slate-500">Gudang: <span class="text-slate-300" x-text="item.warehouse"></span> | Sisa: <strong class="text-red-400" x-text="item.stok + ' pcs'"></strong></p>
+              </div>
+              <button @click="savePOQuick(item)" class="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2.5 py-1.5 rounded-lg transition shrink-0"><i class="fas fa-plus mr-1"></i>Pesan</button>
+            </div>
           </template>
         </div>
       </div>
