@@ -151,14 +151,21 @@ function generate150DummyParts() {
 function generateDummySales(inventory) {
   var sales = [];
   var today = new Date();
+  // Faktor musiman per bulan (index 0=Jan) dan tren pertumbuhan bisnis
+  var season = [0.75, 0.85, 1.15, 1.0, 0.95, 1.05, 0.9, 1.0, 1.1, 1.2, 1.15, 1.3];
   
   for (var d = 365; d >= 0; d--) {
     var dateObj = new Date();
     dateObj.setDate(today.getDate() - d);
     var dateStr = dateObj.toISOString().slice(0, 10);
-    
-    // 2 - 5 transaksi per hari
-    var txCount = Math.floor(Math.random() * 4) + 2;
+    var ageRatio = (365 - d) / 365;
+    var growth = 0.6 + 0.4 * ageRatio;
+    var month = dateObj.getMonth();
+    var seasonal = season[month];
+    var dow = dateObj.getDay();
+    var weekend = (dow === 0 || dow === 6) ? 1.25 : 1.0;
+    var base = 2 + Math.floor(Math.random() * 4);
+    var txCount = Math.max(1, Math.round(base * growth * seasonal * weekend));
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
       var qty = Math.floor(Math.random() * 4) + 1;

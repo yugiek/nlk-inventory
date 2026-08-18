@@ -188,11 +188,20 @@ function seedInventory(ss, inventory) {
 function seedSales(ss, inventory) {
   var sheet = ss.getSheetByName('Sales');
   var today = new Date();
+  // Faktor musiman per bulan (index 0=Jan) dan tren pertumbuhan bisnis
+  var season = [0.75, 0.85, 1.15, 1.0, 0.95, 1.05, 0.9, 1.0, 1.1, 1.2, 1.15, 1.3];
   for (var d = 365; d >= 0; d--) {
     var dateObj = new Date(today);
     dateObj.setDate(today.getDate() - d);
     var dateStr = Utilities.formatDate(dateObj, 'Asia/Jakarta', 'yyyy-MM-dd');
-    var txCount = Math.floor(Math.random() * 4) + 2;
+    var ageRatio = (365 - d) / 365; // 0 (paling lama) → 1 (hari ini)
+    var growth = 0.6 + 0.4 * ageRatio; // bisnis tumbuh mendekati sekarang
+    var month = dateObj.getMonth();
+    var seasonal = season[month];
+    var dow = dateObj.getDay();
+    var weekend = (dow === 0 || dow === 6) ? 1.25 : 1.0; // Sabtu/Minggu lebih ramai
+    var base = 2 + Math.floor(Math.random() * 4); // 2-5 transaksi/hari
+    var txCount = Math.max(1, Math.round(base * growth * seasonal * weekend));
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
       var qty = Math.floor(Math.random() * 4) + 1;

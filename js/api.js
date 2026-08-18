@@ -7,6 +7,14 @@ const API = {
   init() {
     if (!localStorage.getItem(this.STORAGE_KEY)) {
       this.save(NLK.SEED);
+    } else {
+      // Guard: jangan biarkan dashboard kosong jika data tersimpan tidak lengkap
+      var existing = this.load();
+      var needsSeed = !existing.inventory || !existing.inventory.length || !existing.sales || !existing.sales.length;
+      if (needsSeed) {
+        var merged = Object.assign({}, existing, NLK.SEED);
+        this.save(merged);
+      }
     }
     // Force update URL Apps Script jika masih pakai URL lama
     var data = this.load();
@@ -66,13 +74,15 @@ const API = {
       var json = await res.json();
       if (json && json.status === 'ok') {
         var data = this.load();
-        data.inventory = normalizeRows(json.inventory || []);
-        data.sales = normalizeRows(json.sales || []);
-        data.purchaseOrders = normalizePOs(json.purchaseOrders || [], data.inventory);
-        data.suppliers = normalizeRows(json.suppliers || []);
+        var remoteInv = normalizeRows(json.inventory || []);
+        var remoteSales = normalizeRows(json.sales || []);
+        if (remoteInv.length) data.inventory = remoteInv;
+        if (remoteSales.length) data.sales = remoteSales;
+        if ((json.purchaseOrders || []).length) data.purchaseOrders = normalizePOs(json.purchaseOrders, data.inventory);
+        if ((json.suppliers || []).length) data.suppliers = normalizeRows(json.suppliers);
         this.save(data);
         window.dispatchEvent(new CustomEvent('nlk-data-changed'));
-        console.log('Sync dari Sheets OK:', (json.inventory||[]).length, 'item,', (json.sales||[]).length, 'sales');
+        console.log('Sync dari Sheets OK:', remoteInv.length, 'item,', remoteSales.length, 'sales');
       } else {
         console.warn('Sheets response:', json);
       }
