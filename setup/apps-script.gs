@@ -193,14 +193,16 @@ function generateInventory() {
 
 function seedInventory(ss, inventory) {
   var sheet = ss.getSheetByName('Inventory');
-  inventory.forEach(function(item) { sheet.appendRow(item); });
+  if (inventory.length > 0) {
+    sheet.getRange(2, 1, inventory.length, inventory[0].length).setValues(inventory);
+  }
 }
 
 function seedSales(ss, inventory) {
   var sheet = ss.getSheetByName('Sales');
   var today = new Date();
-  // Faktor musiman per bulan (index 0=Jan) dan tren pertumbuhan bisnis
   var season = [0.75, 0.85, 1.15, 1.0, 0.95, 1.05, 0.9, 1.0, 1.1, 1.2, 1.15, 1.3];
+  var rows = [];
   for (var d = 730; d >= 0; d--) {
     var dateObj = new Date(today);
     dateObj.setDate(today.getDate() - d);
@@ -216,11 +218,15 @@ function seedSales(ss, inventory) {
     for (var t = 0; t < txCount; t++) {
       var item = inventory[Math.floor(Math.random() * inventory.length)];
       var qty = Math.floor(Math.random() * 4) + 1;
-      sheet.appendRow([
+      rows.push([
         'SALE-' + Math.floor(100000 + Math.random() * 900000),
         dateStr, item[0], qty, item[6]
       ]);
     }
+  }
+  if (rows.length > 0) {
+    // Write in chunks of 500 rows if needed, or all at once (Google Sheets handles thousands easily in setValues)
+    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
 }
 
