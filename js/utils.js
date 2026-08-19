@@ -45,8 +45,8 @@ NLK.buildSalesMap = function(sales, days) {
   }
   var result = {};
   for (var sku in map) {
-    var uniqueDays = Object.keys(map[sku].days).length;
-    result[sku] = uniqueDays > 0 ? map[sku].totalQty / uniqueDays : 0;
+    // Average is over the full observation window, not only transaction days.
+    result[sku] = map[sku].totalQty / days;
   }
   return result;
 };
@@ -63,8 +63,7 @@ NLK.avgDailySales = function(sales, sku, days) {
       uniqueDays[s.tanggal] = true;
     }
   }
-  var count = Object.keys(uniqueDays).length;
-  return count > 0 ? total / count : 0;
+  return total / days;
 };
 
 NLK.stockStatus = function(item, avgDaily) {
@@ -80,42 +79,30 @@ NLK.stockStatus = function(item, avgDaily) {
 };
 
 NLK.statusLabel = function(s) {
-  return { ok: 'Aman', warn: 'Hampir Habis', critical: 'Stok Rendah' }[s] || '-';
+  return { ok:'Aman', warn:'Reorder', critical:'Kritis', stockout:'Stock Out', overstock:'Overstock', bad:'Bad Stock' }[s] || '-';
 };
-
 NLK.statusColor = function(s) {
-  return { ok: 'text-emerald-400', warn: 'text-yellow-400', critical: 'text-red-400' }[s] || 'text-slate-400';
+  return { ok:'text-emerald-400', warn:'text-yellow-400', critical:'text-red-400', stockout:'text-red-500', overstock:'text-cyan-400', bad:'text-purple-400' }[s] || 'text-slate-400';
 };
-
 NLK.statusBg = function(s) {
-  return { ok: 'bg-emerald-500/10 border border-emerald-500/20', warn: 'bg-yellow-500/10 border border-yellow-500/20', critical: 'bg-red-500/10 border border-red-500/20' }[s] || '';
+  return { ok:'bg-emerald-500/10 border border-emerald-500/20', warn:'bg-yellow-500/10 border border-yellow-500/20', critical:'bg-red-500/10 border border-red-500/20', stockout:'bg-red-600/15 border border-red-500/30', overstock:'bg-cyan-500/10 border border-cyan-500/20', bad:'bg-purple-500/10 border border-purple-500/20' }[s] || '';
 };
 
 NLK.parseCSV = function(text) {
-  // CSV parser sederhana yang tetap menangani koma di dalam tanda kutip.
-  var rows = [], row = [], field = '', quoted = false;
-  for (var i=0;i<text.length;i++) {
-    var ch=text[i], next=text[i+1];
-    if (ch === '"' && quoted && next === '"') { field += '"'; i++; continue; }
-    if (ch === '"') { quoted=!quoted; continue; }
-    if (ch === ',' && !quoted) { row.push(field.trim()); field=''; continue; }
-    if ((ch === '\\n' || ch === '\\r') && !quoted) {
-      if (ch === '\\r' && next === '\\n') i++;
-      row.push(field.trim()); field='';
-      if (row.some(function(v){return v!=='';})) rows.push(row);
-      row=[]; continue;
+  var lines = text.split('\n');
+  var result = [];
+  var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/^["']|["']$/g, ''); });
+  for (var i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    var currentline = lines[i].split(',');
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      var val = (currentline[j] || '').trim().replace(/^["']|["']$/g, '');
+      obj[headers[j]] = val;
     }
-    field += ch;
+    result.push(obj);
   }
-  row.push(field.trim());
-  if (row.some(function(v){return v!=='';})) rows.push(row);
-  if (!rows.length) return [];
-  var headers=rows[0].map(function(h){return h.replace(/^['"]|['"]$/g,'').trim();});
-  return rows.slice(1).map(function(cols){
-    var obj={};
-    headers.forEach(function(h,j){obj[h]=(cols[j]||'').replace(/^['"]|['"]$/g,'').trim();});
-    return obj;
-  });
+  return result;
 };
 
 // Generate 150 Dummy Inventory Items
@@ -151,7 +138,8 @@ function generate150DummyParts() {
       hargaJual: jual,
       lokasiRak: racks[i % racks.length] + '-' + (i % 9 + 1),
       leadTimeHari: 25 + (i % 4) * 5,
-      aktif: true
+      aktif: true,
+      badStock: 0, bufferPct: 15, targetStockMonths: 1
     });
   }
   return parts;
@@ -181,6 +169,9 @@ function generateDummySales(inventory) {
       var qty = Math.floor(Math.random() * 4) + 1;
       sales.push({
         id: 'SALE-' + Math.floor(100000 + Math.random() * 900000),
+        soNumber: 'SO-' + dateStr.replace(/-/g,'') + '-' + String(t+1).padStart(3,'0'),
+        customer: ['PT Maju Jaya','CV Sumber Rezeki','PT Nusantara Motor','Customer Umum'][Math.floor(Math.random()*4)],
+        destination: item.warehouse,
         tanggal: dateStr,
         sku: item.sku,
         brand: item.brand,
@@ -261,7 +252,6 @@ NLK.SEED = {
   settings: {
     kursCNYtoIDR: 16500,
     safetyStockDays: 7,
-    maxStockDays: 60,
     appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwsikqVD516dY_QVIrwAbwOHIXgyuNFe_L4rhZzA6xrsUM97M-VAx8lgQVPd5uC7cSCpw/exec'
   }
 };

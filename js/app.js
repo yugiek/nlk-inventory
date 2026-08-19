@@ -30,7 +30,6 @@ document.addEventListener('alpine:init', function() {
 
       chartInstances: {},
       salesAvgMap: {},
-      analyticsCache: {},
 
       // ==== LIFECYCLE ====
       init() {
@@ -58,13 +57,7 @@ document.addEventListener('alpine:init', function() {
       },
 
       rebuildAvgMap() {
-        var self = this;
-        this.salesAvgMap = {};
-        this.inventory.forEach(function(item) {
-          self.salesAvgMap[item.id] = NLK.analytics.avgDailySales(self.sales, item.id, 30, {
-            brand: self.selectedBrand, warehouse: self.selectedWarehouse
-          });
-        });
+        this.salesAvgMap = NLK.buildSalesMap(this.sales, 30);
       },
 
       toggleSidebar() {
@@ -178,6 +171,10 @@ document.addEventListener('alpine:init', function() {
             days: self.itemDaysLeft(i),
             rp: self.itemReorderPoint(i),
             rq: self.itemReorderQty(i),
+            monthly: self.itemMonthlyDemand(i),
+            safety: self.itemSafetyStock(i),
+            incoming: self.itemIncoming(i),
+            movement: self.itemMovement(i),
             stat: self.itemStatus(i)
           });
         });
@@ -191,43 +188,28 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // ==== INVENTORY INTELLIGENCE ====
-      itemAvg(item) {
-        return item && item.id ? NLK.analytics.avgDailySales(this.sales, item.id, 30, {
-          brand: this.selectedBrand, warehouse: this.selectedWarehouse
-        }) : 0;
-      },
+      // ==== ANALYSIS HELPERS ====
+      itemAvg(item) { return item && item.id ? (this.salesAvgMap[item.id] || 0) : 0; },
+      itemMonthlyDemand(item) { return NLK.analytics.monthlyDemand(this.sales, item.id, 3); },
+      itemSafetyStock(item) { return NLK.analytics.safetyStock(item, this.settings, this.itemMonthlyDemand(item)); },
+      itemReorderPoint(item) { return NLK.analytics.reorderPoint(item, this.settings, this.itemMonthlyDemand(item)); },
+      itemTargetStock(item) { return NLK.analytics.targetStock(item, this.settings, this.itemMonthlyDemand(item)); },
       itemIncoming(item) { return NLK.analytics.incomingQty(this.pos, item.id); },
-      itemSafetyStock(item) { return NLK.analytics.safetyStock(this.itemAvg(item), this.settings.safetyStockDays || 7); },
-      itemReorderPoint(item) { return NLK.analytics.reorderPoint(this.itemAvg(item), item.leadTimeHari || 30, this.settings.safetyStockDays || 7); },
-      itemDaysLeft(item) { var avg=this.itemAvg(item); return NLK.analytics.coverageDays(Number(item.stok)||0,avg); },
-      itemProjectedStockout(item) { return NLK.analytics.projectedStockoutDate(Number(item.stok)||0,this.itemAvg(item)); },
-      itemReorderQty(item) {
-        return NLK.analytics.recommendedOrder(
-          Number(item.stok)||0, this.itemAvg(item), item.leadTimeHari || 30,
-          this.settings.safetyStockDays || 7, this.itemIncoming(item), this.settings.maxStockDays || 60
-        );
-      },
+      itemAvailable(item) { return Math.max(0, Number(item.stok || 0) - Number(item.badStock || 0)); },
+      itemDaysLeft(item) { var avg = this.itemAvg(item); return avg > 0 ? Math.floor(this.itemAvailable(item) / avg) : Infinity; },
+      itemMovement(item) { return NLK.analytics.movement(this.sales, item.id, 3); },
       itemStatus(item) {
-        return NLK.analytics.status(Number(item.stok)||0,this.itemAvg(item),item.minStok,item.leadTimeHari||30,this.settings.safetyStockDays||7);
+        var available = this.itemAvailable(item), ss = this.itemSafetyStock(item), rp = this.itemReorderPoint(item), days = this.itemDaysLeft(item);
+        if (Number(item.badStock || 0) > 0 && available <= 0) return 'bad';
+        if (available <= 0) return 'stockout';
+        if (days <= 7 || available <= ss) return 'critical';
+        if (available <= rp) return 'warn';
+        if (this.itemMovement(item) === 'dead' && available > 0) return 'overstock';
+        if (this.itemMovement(item) === 'slow' && days > 180) return 'overstock';
+        return 'ok';
       },
-      itemCoverageLabel(item) {
-        var d=this.itemDaysLeft(item); return isFinite(d) ? d.toFixed(1)+' hari' : '—';
-      },
-      inventoryHealth() {
-        return NLK.analytics.health(this.inventory,this.sales,this.pos,this.settings,{brand:this.selectedBrand,warehouse:this.selectedWarehouse});
-      },
-      get deadStockItems() {
-        return NLK.analytics.deadStock(this.inventory,this.sales,90,{brand:this.selectedBrand,warehouse:this.selectedWarehouse});
-      },
-      get stockoutRiskList() {
-        var self=this;
-        return this.inventory.filter(function(i){
-          return (self.selectedBrand==='ALL'||i.brand===self.selectedBrand)&&
-                 (self.selectedWarehouse==='ALL'||i.warehouse===self.selectedWarehouse)&&
-                 self.itemStatus(i)==='critical';
-        }).map(function(i){return Object.assign({},i,{avg:self.itemAvg(i),coverage:self.itemDaysLeft(i),incoming:self.itemIncoming(i),rop:self.itemReorderPoint(i),rq:self.itemReorderQty(i),stockout:self.itemProjectedStockout(i)});})
-        .sort(function(a,b){return (a.coverage===Infinity?999999:a.coverage)-(b.coverage===Infinity?999999:b.coverage);});
+      itemReorderQty(item) {
+        return NLK.analytics.recommendedOrder(item, this.settings, this.itemMonthlyDemand(item), this.itemIncoming(item));
       },
 
        get stats() {
@@ -243,21 +225,28 @@ document.addEventListener('alpine:init', function() {
          const invValue = inv.reduce((sum, i) => sum + (i.stok * (i.hargaBeliCNY || 0) * kurs), 0);
          const totalSold = sales.reduce((sum, s) => sum + s.jumlah, 0);
          const revenue = sales.reduce((sum, s) => sum + (s.jumlah * s.hargaJual), 0);
-         const lowStock = inv.filter(i => this.itemStatus(i) === 'critical').length;
+         const lowStock = inv.filter(i => ['critical','stockout'].includes(this.itemStatus(i))).length;
+         const badStock = inv.reduce((sum,i) => sum + Number(i.badStock || 0), 0);
+         const deadStock = inv.filter(i => this.itemMovement(i) === 'dead').length;
+         const overstock = inv.filter(i => this.itemStatus(i) === 'overstock').length;
          const inTransit = this.pos.filter(p => p.status === 'in transit' || p.status === 'shipped').length;
-         return { invValue, totalSold, revenue, lowStock, inTransit };
+         return { invValue, totalSold, revenue, lowStock, badStock, deadStock, overstock, inTransit };
        },
 
       get topMoving() {
-        var counts={}, self=this, cutoff=NLK.daysAgo(30);
-        this.sales.forEach(function(s){
-          if(s.tanggal<cutoff) return;
-          if(self.selectedBrand!=='ALL'&&s.brand!==self.selectedBrand) return;
-          if(self.selectedWarehouse!=='ALL'&&s.warehouse!==self.selectedWarehouse) return;
-          counts[s.sku]=(counts[s.sku]||0)+Number(s.jumlah||0);
-        });
-        return Object.keys(counts).map(function(sku){var item=self.inventory.find(i=>i.id===sku);return {sku:sku,nama:item?item.nama:sku,qty:counts[sku]};})
-          .sort(function(a,b){return b.qty-a.qty;}).slice(0,5);
+        const counts = {}; this.sales.forEach(s => { if (!counts[s.sku]) counts[s.sku] = 0; counts[s.sku] += s.jumlah; });
+        return Object.keys(counts).map(sku => { var item = this.inventory.find(i => i.id === sku); return { sku, nama: item ? item.nama : sku, qty: counts[sku] }; }).sort((a, b) => b.qty - a.qty).slice(0, 5);
+      },
+
+       get activePOs() { return this.pos.filter(p => p.status !== 'arrived' && p.status !== 'cancelled'); },
+       
+       get urgentReorderList() {
+         var self = this;
+         return this.inventory.filter(i => {
+           var matchBrand = self.selectedBrand === 'ALL' || i.brand === self.selectedBrand;
+           var matchWH = self.selectedWarehouse === 'ALL' || i.warehouse === self.selectedWarehouse;
+           return matchBrand && matchWH && self.itemStatus(i) === 'critical';
+         }).sort((a,b) => (a.stok/this.itemAvg(a)) - (b.stok/this.itemAvg(b)));
        },
 
        warehouseStats(wh) {
@@ -329,10 +318,10 @@ document.addEventListener('alpine:init', function() {
        },
 
       evalSummary() {
-        var self=this;
-        return [{l:'Mingguan',d:7},{l:'Bulanan',d:30},{l:'Kuartal',d:90},{l:'Semester',d:180},{l:'Tahunan',d:365}].map(function(p){
-          var s=NLK.analytics.periodSummary(self.sales,p.d,{brand:self.selectedBrand,warehouse:self.selectedWarehouse});
-          return {label:p.l,qty:s.qty,revenue:s.revenue};
+        var self = this;
+        return [{l:'Mingguan', d:7},{l:'Bulanan', d:30},{l:'Kuartal', d:90},{l:'Semester', d:180},{l:'Tahunan', d:365}].map(p => {
+          var cutoff = NLK.daysAgo(p.d), pSales = this.sales.filter(s => s.tanggal >= cutoff), qty = pSales.reduce((s,x)=>s+(x.jumlah||0),0), rev = pSales.reduce((s,x)=>s+(x.jumlah*x.hargaJual),0);
+          return { label: p.l, qty: qty, revenue: rev };
         });
       },
 
@@ -375,42 +364,18 @@ document.addEventListener('alpine:init', function() {
         a.href = url; a.download = 'Laporan-NLK-'+rd.periodLabel+'.csv'; a.click();
       },
 
-      periodSummary(days) {
-        return NLK.analytics.periodSummary(this.sales, days || 30, {brand:this.selectedBrand,warehouse:this.selectedWarehouse});
-      },
-      managementKpis() {
-        var days={mingguan:7,bulanan:30,kuartal:90,semester:180,tahunan:365}[this.evalPeriod]||30;
-        var f={brand:this.selectedBrand,warehouse:this.selectedWarehouse};
-        var ps=NLK.analytics.periodSummary(this.sales,days,f);
-        var filteredInv=this.inventory.filter(i=>(this.selectedBrand==='ALL'||i.brand===this.selectedBrand)&&(this.selectedWarehouse==='ALL'||i.warehouse===this.selectedWarehouse));
-        var gp=NLK.analytics.grossProfit(NLK.analytics.salesInWindow(this.sales,days,f),filteredInv,this.settings.kursCNYtoIDR||16500);
-        var revenue=ps.revenue;
-        return {revenue:revenue,qty:ps.qty,grossProfit:gp,margin:revenue?gp/revenue*100:0,revenueGrowth:ps.revenueGrowth,qtyGrowth:ps.qtyGrowth,health:this.inventoryHealth(),deadValue:this.deadStockItems.reduce((a,i)=>a+(Number(i.stok)||0)*(Number(i.hargaBeliCNY)||0)*(this.settings.kursCNYtoIDR||16500),0),stockoutRisk:this.stockoutRiskList.length};
-      },
-      openModal(name,item) {
-        this.showModal[name]=true;
-        if(name==='inventory') this.form.inventory=item?Object.assign({},item):{id:'',brand:this.selectedBrand==='ALL'?'NLK':this.selectedBrand,warehouse:this.selectedWarehouse==='ALL'?'Surabaya':this.selectedWarehouse,aktif:true,stok:0,minStok:5,leadTimeHari:30};
-        if(name==='sales') this.form.sales={id:'',tanggal:NLK.today(),sku:'',jumlah:1};
-        if(name==='po') { this.poDraft={supplierId:'',tanggal:NLK.today(),estimasiTiba:NLK.addDays(NLK.today(),30),items:[],catatan:''}; this.poNewItem={sku:'',qty:1}; }
-      },
-      closeModal(name) { this.showModal[name]=false; },
-      get activePOValue() {
-        var kurs=this.settings.kursCNYtoIDR||16500;
-        return this.activePOs.reduce((a,p)=>a+(p.items||[]).reduce((s,i)=>s+Number(i.qty||0)*Number(i.hargaBeliCNY||0),0)*kurs,0);
-      },
-
       // ==== MODAL ACTIONS ====
       setPage(p) { this.page = p; },
       saveInventory() {
         var f = this.form.inventory; if (!f.nama) return;
-        f.stok = Number(f.stok)||0; f.minStok = Number(f.minStok)||0; f.hargaBeliCNY = Number(f.hargaBeliCNY)||0; f.hargaJual = Number(f.hargaJual)||0; f.leadTimeHari = Number(f.leadTimeHari)||30;
+        f.stok = Number(f.stok)||0; f.badStock = Number(f.badStock)||0; f.safetyStock = f.safetyStock === '' || f.safetyStock === undefined ? undefined : Number(f.safetyStock); f.bufferPct = Number(f.bufferPct)||0; f.targetStockMonths = Number(f.targetStockMonths)||1; f.minStok = Number(f.minStok)||0; f.hargaBeliCNY = Number(f.hargaBeliCNY)||0; f.hargaJual = Number(f.hargaJual)||0; f.leadTimeHari = Number(f.leadTimeHari)||30;
         if (f.id) NLK.api.updatePart(f); else NLK.api.addPart(f);
         this.data = NLK.api.load(); this.rebuildAvgMap(); this.closeModal('inventory');
       },
       deletePart(item) { if (confirm('Hapus '+item.nama+'?')) { NLK.api.deletePart(item.id); this.data = NLK.api.load(); this.rebuildAvgMap(); } },
       saveSale() {
         var f = this.form.sales; var part = this.inventory.find(i=>i.id===f.sku); if (!part || part.stok < f.jumlah) return;
-        f.hargaJual = part.hargaJual; NLK.api.addSale(f); part.stok -= f.jumlah; NLK.api.updatePart(part);
+        f.hargaJual = part.hargaJual; f.soNumber = f.soNumber || NLK.genId('SO'); f.customer = f.customer || 'Customer Umum'; f.destination = f.destination || part.warehouse || '-'; f.brand = part.brand; f.warehouse = part.warehouse; NLK.api.addSale(f); part.stok -= f.jumlah; NLK.api.updatePart(part);
         this.data = NLK.api.load(); this.rebuildAvgMap(); this.closeModal('sales');
       },
       savePO() {
@@ -456,7 +421,9 @@ document.addEventListener('alpine:init', function() {
       stockStatusBg: NLK.statusBg,
       stockStatusColor: NLK.statusColor,
       stockStatusLabel: NLK.statusLabel,
-      salesWithName() { return this.sales.slice().sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(s => { var p = this.inventory.find(i=>i.id===s.sku); return Object.assign({}, s, {nama:p?p.nama:s.sku}); }); }
+      movementLabel: s => ({fast:'Fast Moving',medium:'Medium Moving',slow:'Slow Moving',dead:'Dead Stock'}[s]||'-'),
+      movementClass: s => ({fast:'bg-orange-500/10 text-orange-400 border-orange-500/20',medium:'bg-blue-500/10 text-blue-400 border-blue-500/20',slow:'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',dead:'bg-slate-700 text-slate-300 border-slate-600'}[s]||'bg-slate-800 text-slate-400'),
+      salesWithName() { return this.sales.slice().sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(s => { var p = this.inventory.find(i=>i.id===s.sku); return Object.assign({}, s, {nama:p?p.nama:s.sku, movement:p?this.itemMovement(p):'dead', soNumber:s.soNumber||s.noSalesOrder||'-', customer:s.customer||s.customerName||'-', destination:s.destination||'-'}); }); }
     };
   });
 });

@@ -8,8 +8,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="js/utils.js"></script>
-  <script src="js/analytics.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/app.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
   <style>
@@ -196,83 +196,6 @@
         </div>
       </div>
 
-      <!-- ===== INVENTORY INTELLIGENCE ===== -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Inventory Health</p>
-          <div class="flex items-end gap-2 mt-1">
-            <p class="text-2xl font-black text-white" x-text="inventoryHealth().score"></p>
-            <span class="text-xs text-slate-500 mb-1">/ 100</span>
-          </div>
-          <p class="text-[10px] text-slate-500 mt-1">Availability <span class="text-emerald-400" x-text="inventoryHealth().availability + '%'"></span></p>
-        </div>
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stock-out Risk</p>
-          <p class="text-2xl font-black text-red-400 mt-1" x-text="stockoutRiskList.length"></p>
-          <p class="text-[10px] text-slate-500 mt-1">SKU perlu tindakan</p>
-        </div>
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Dead Stock</p>
-          <p class="text-lg font-black text-orange-400 mt-1" x-text="fmtRp(managementKpis().deadValue)"></p>
-          <p class="text-[10px] text-slate-500 mt-1"><span x-text="deadStockItems.length"></span> SKU tanpa sales 90 hari</p>
-        </div>
-        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
-          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Gross Margin</p>
-          <p class="text-2xl font-black text-emerald-400 mt-1" x-text="managementKpis().margin.toFixed(1) + '%'"></p>
-          <p class="text-[10px] text-slate-500 mt-1">Estimasi berdasarkan HPP saat ini</p>
-        </div>
-      </div>
-
-      <!-- Action Center -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-slate-900 rounded-xl border border-red-500/20 p-5">
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h3 class="text-sm font-bold text-red-400 flex items-center gap-2"><i class="fas fa-triangle-exclamation"></i> Stock-out Risk</h3>
-              <p class="text-[10px] text-slate-500 mt-1">Prioritas berdasarkan coverage stok</p>
-            </div>
-            <button @click="setPage('reorder')" class="text-[10px] bg-red-600 hover:bg-red-700 px-2.5 py-1.5 rounded-lg font-bold">Kelola</button>
-          </div>
-          <div class="space-y-2">
-            <template x-for="item in stockoutRiskList.slice(0,4)" :key="item.id">
-              <div class="flex items-center gap-3 bg-slate-800/50 border border-slate-800 rounded-lg p-3">
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-bold text-slate-200 truncate" x-text="item.nama"></p>
-                  <p class="text-[10px] text-slate-500"><span x-text="item.id"></span> · <span x-text="item.stok"></span> pcs · Avg <span x-text="item.avg.toFixed(1)"></span>/hari</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-xs font-black text-red-400" x-text="item.coverage === Infinity ? '—' : item.coverage.toFixed(1) + ' hari'"></p>
-                  <p class="text-[9px] text-yellow-400" x-text="'Order ' + item.rq + ' pcs'"></p>
-                </div>
-              </div>
-            </template>
-            <p x-show="stockoutRiskList.length===0" class="text-center text-xs text-slate-500 py-4">Tidak ada risiko stock-out.</p>
-          </div>
-        </div>
-
-        <div class="bg-slate-900 rounded-xl border border-orange-500/20 p-5">
-          <div class="flex justify-between items-center mb-4">
-            <div>
-              <h3 class="text-sm font-bold text-orange-400 flex items-center gap-2"><i class="fas fa-box-open"></i> Dead Stock</h3>
-              <p class="text-[10px] text-slate-500 mt-1">Stok ada tetapi tidak terjual selama 90 hari</p>
-            </div>
-            <span class="text-xs font-bold text-orange-400" x-text="deadStockItems.length + ' SKU'"></span>
-          </div>
-          <div class="space-y-2">
-            <template x-for="item in deadStockItems.slice(0,4)" :key="item.id">
-              <div class="flex justify-between items-center bg-slate-800/50 border border-slate-800 rounded-lg p-3">
-                <div class="min-w-0">
-                  <p class="text-xs font-bold text-slate-200 truncate" x-text="item.nama"></p>
-                  <p class="text-[10px] text-slate-500"><span x-text="item.id"></span> · <span x-text="item.stok"></span> pcs</p>
-                </div>
-                <p class="text-xs font-bold text-orange-400" x-text="fmtRp(item.stok * item.hargaBeliCNY * (settings.kursCNYtoIDR||16500))"></p>
-              </div>
-            </template>
-            <p x-show="deadStockItems.length===0" class="text-center text-xs text-slate-500 py-4">Tidak ada dead stock.</p>
-          </div>
-        </div>
-      </div>
-
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-5">
@@ -359,17 +282,28 @@
           <template x-for="c in categories"><option :value="c" x-text="c === 'all' ? 'Semua Kategori' : c"></option></template>
         </select>
       </div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3"><p class="text-[9px] text-slate-500 uppercase font-bold">Critical / Stock Out</p><p class="text-lg font-bold text-red-400" x-text="stats.lowStock"></p></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3"><p class="text-[9px] text-slate-500 uppercase font-bold">Bad Stock</p><p class="text-lg font-bold text-purple-400" x-text="stats.badStock + ' pcs'"></p></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3"><p class="text-[9px] text-slate-500 uppercase font-bold">Dead Stock SKU</p><p class="text-lg font-bold text-slate-300" x-text="stats.deadStock"></p></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3"><p class="text-[9px] text-slate-500 uppercase font-bold">Overstock SKU</p><p class="text-lg font-bold text-cyan-400" x-text="stats.overstock"></p></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3"><p class="text-[9px] text-slate-500 uppercase font-bold">Avg Coverage</p><p class="text-lg font-bold text-indigo-400" x-text="(inventory.reduce((s,i)=>s+(itemDaysLeft(i)===Infinity?0:itemDaysLeft(i)),0)/Math.max(1,inventory.filter(i=>itemDaysLeft(i)!==Infinity).length)).toFixed(0) + ' hari'"></p></div>
+      </div>
       <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-sm">
+          <table class="min-w-[1100px] w-full text-sm">
             <thead class="bg-slate-800/80 border-b border-slate-800">
               <tr>
-                <th @click="sortBy('inv', 'id')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">SKU <i class="fas ml-1" :class="sortIcon('inv', 'id')"></i></th>
-                <th @click="sortBy('inv', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Nama <i class="fas ml-1" :class="sortIcon('inv', 'nama')"></i></th>
-                <th @click="sortBy('inv', 'kategori')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Kategori <i class="fas ml-1" :class="sortIcon('inv', 'kategori')"></i></th>
-                <th @click="sortBy('inv', 'lokasiRak')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Rak <i class="fas ml-1" :class="sortIcon('inv', 'lokasiRak')"></i></th>
-                <th @click="sortBy('inv', 'stok')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Stok <i class="fas ml-1" :class="sortIcon('inv', 'stok')"></i></th>
-                <th @click="sortBy('inv', 'status')" class="text-center p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none uppercase text-[10px] tracking-widest">Status <i class="fas ml-1" :class="sortIcon('inv', 'status')"></i></th>
+                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-widest">SKU</th>
+                <th class="text-left p-3 text-slate-400 uppercase text-[10px] tracking-widest">Nama</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Stok</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Kebutuhan/Bln</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Safety</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Buffer</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Incoming</th>
+                <th class="text-right p-3 text-slate-400 uppercase text-[10px] tracking-widest">Coverage</th>
+                <th class="text-center p-3 text-slate-400 uppercase text-[10px] tracking-widest">Movement</th>
+                <th class="text-center p-3 text-slate-400 uppercase text-[10px] tracking-widest">Status</th>
                 <th class="p-3 text-center uppercase text-[10px] tracking-widest">Aksi</th>
               </tr>
             </thead>
@@ -377,14 +311,16 @@
               <template x-for="item in filteredInventory" :key="item.id">
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
                   <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="item.id"></td>
-                  <td class="p-3 font-medium text-slate-200" x-text="item.nama"></td>
-                  <td class="p-3 text-slate-400 text-xs" x-text="item.kategori"></td>
-                  <td class="p-3 text-slate-500 text-xs" x-text="item.lokasiRak || '-'"></td>
+                  <td class="p-3 font-medium text-slate-200 min-w-[180px]" x-text="item.nama"></td>
                   <td class="p-3 text-right font-bold" x-text="item.stok"></td>
-                  <td class="p-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="stockStatusBg(itemStatus(item)) + ' ' + stockStatusColor(itemStatus(item))" x-text="stockStatusLabel(itemStatus(item))"></span>
-                  </td>
-                  <td class="p-3 text-center">
+                  <td class="p-3 text-right text-cyan-400 font-semibold" x-text="Math.round(itemMonthlyDemand(item))"></td>
+                  <td class="p-3 text-right text-purple-400" x-text="itemSafetyStock(item)"></td>
+                  <td class="p-3 text-right text-yellow-400" x-text="Math.round(itemMonthlyDemand(item) * ((item.bufferPct || settings.bufferPct || 15) / 100))"></td>
+                  <td class="p-3 text-right text-blue-400" x-text="itemIncoming(item)"></td>
+                  <td class="p-3 text-right text-slate-300" x-text="itemDaysLeft(item) === Infinity ? '∞' : itemDaysLeft(item) + 'd'"></td>
+                  <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-semibold border" :class="movementClass(itemMovement(item))" x-text="movementLabel(itemMovement(item))"></span></td>
+                  <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="stockStatusBg(itemStatus(item)) + ' ' + stockStatusColor(itemStatus(item))" x-text="stockStatusLabel(itemStatus(item))"></span></td>
+                  <td class="p-3 text-center whitespace-nowrap">
                     <button @click="openModal('inventory', item)" class="text-slate-500 hover:text-yellow-400 mr-2"><i class="fas fa-pen text-xs"></i></button>
                     <button @click="deletePart(item)" class="text-slate-500 hover:text-red-400"><i class="fas fa-trash text-xs"></i></button>
                   </td>
@@ -406,20 +342,26 @@
         <table class="w-full text-sm">
           <thead class="bg-slate-800/80 border-b border-slate-800">
             <tr>
-              <th @click="sortBy('sales', 'tanggal')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Tanggal <i class="fas ml-1" :class="sortIcon('sales', 'tanggal')"></i></th>
-              <th @click="sortBy('sales', 'sku')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">SKU <i class="fas ml-1" :class="sortIcon('sales', 'sku')"></i></th>
-              <th @click="sortBy('sales', 'nama')" class="text-left p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Nama <i class="fas ml-1" :class="sortIcon('sales', 'nama')"></i></th>
-              <th @click="sortBy('sales', 'jumlah')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Qty <i class="fas ml-1" :class="sortIcon('sales', 'jumlah')"></i></th>
-              <th @click="sortBy('sales', 'total')" class="text-right p-3 text-slate-400 cursor-pointer hover:text-indigo-400 select-none">Total <i class="fas ml-1" :class="sortIcon('sales', 'total')"></i></th>
+              <th class="text-left p-3 text-slate-400 select-none">No. Sales Order</th>
+              <th class="text-left p-3 text-slate-400 select-none">Tanggal</th>
+              <th class="text-left p-3 text-slate-400 select-none">Customer / Tujuan</th>
+              <th class="text-left p-3 text-slate-400 select-none">SKU</th>
+              <th class="text-left p-3 text-slate-400 select-none">Nama</th>
+              <th class="text-right p-3 text-slate-400 select-none">Qty</th>
+              <th class="text-center p-3 text-slate-400 select-none">Movement</th>
+              <th class="text-right p-3 text-slate-400 select-none">Total</th>
             </tr>
           </thead>
           <tbody>
             <template x-for="s in sortedSales.slice(0, 100)">
               <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
+                <td class="p-3 font-mono text-[10px] text-indigo-400" x-text="s.soNumber"></td>
                 <td class="p-3 text-xs text-slate-300" x-text="fmtDate(s.tanggal)"></td>
+                <td class="p-3 text-xs text-slate-300"><span x-text="s.customer"></span><span class="block text-[10px] text-slate-500" x-text="s.destination"></span></td>
                 <td class="p-3 font-mono text-[11px] text-indigo-400" x-text="s.sku"></td>
                 <td class="p-3 text-slate-200" x-text="s.nama"></td>
                 <td class="p-3 text-right" x-text="s.jumlah"></td>
+                <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[9px] font-semibold border" :class="movementClass(s.movement)" x-text="movementLabel(s.movement)"></span></td>
                 <td class="p-3 text-right font-bold text-emerald-400" x-text="fmtRp(s.jumlah * s.hargaJual)"></td>
               </tr>
             </template>
@@ -615,10 +557,6 @@
               <label class="text-xs text-slate-400 mb-1 block">Safety Stock (hari)</label>
               <input type="number" x-model.number="settings.safetyStockDays" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
             </div>
-            <div>
-              <label class="text-xs text-slate-400 mb-1 block">Target Stock Coverage (hari)</label>
-              <input type="number" x-model.number="settings.maxStockDays" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
-            </div>
           </div>
         </div>
         <div>
@@ -652,7 +590,11 @@
       <div class="col-span-2"><label class="text-xs text-slate-400 mb-1 block">Nama Part *</label><input type="text" x-model="form.inventory.nama" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
       <div><label class="text-xs text-slate-400 mb-1 block">SKU</label><input type="text" x-model="form.inventory.id" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
       <div><label class="text-xs text-slate-400 mb-1 block">Kategori *</label><input type="text" x-model="form.inventory.kategori" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
-      <div><label class="text-xs text-slate-400 mb-1 block">Stok</label><input type="number" x-model.number="form.inventory.stok" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Good Stock</label><input type="number" x-model.number="form.inventory.stok" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Bad Stock</label><input type="number" x-model.number="form.inventory.badStock" min="0" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Safety Stock (override)</label><input type="number" x-model.number="form.inventory.safetyStock" min="0" placeholder="Otomatis" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Buffer Demand (%)</label><input type="number" x-model.number="form.inventory.bufferPct" min="0" max="100" placeholder="15" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">Target Stock (bulan)</label><input type="number" step="0.5" x-model.number="form.inventory.targetStockMonths" min="0.5" placeholder="1" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
       <div><label class="text-xs text-slate-400 mb-1 block">Min Stok</label><input type="number" x-model.number="form.inventory.minStok" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
       <div><label class="text-xs text-slate-400 mb-1 block">Harga Beli (CNY)</label><input type="number" x-model.number="form.inventory.hargaBeliCNY" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
       <div><label class="text-xs text-slate-400 mb-1 block">Harga Jual (IDR)</label><input type="number" x-model.number="form.inventory.hargaJual" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
@@ -671,13 +613,14 @@
   <div class="bg-slate-900 rounded-xl border border-slate-800 w-full max-w-md p-6">
     <h3 class="text-lg font-bold mb-5 text-white">Tambah Penjualan</h3>
     <div class="space-y-4">
-      <div><label class="text-xs text-slate-400 mb-1 block">Tanggal</label><input type="date" x-model="form.sales.tanggal" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
+      <div class="grid grid-cols-2 gap-4"><div><label class="text-xs text-slate-400 mb-1 block">No. Sales Order</label><input type="text" x-model="form.sales.soNumber" placeholder="SO-2026-0001" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div><div><label class="text-xs text-slate-400 mb-1 block">Tanggal</label><input type="date" x-model="form.sales.tanggal" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div></div>
       <div><label class="text-xs text-slate-400 mb-1 block">SKU Part</label>
         <select x-model="form.sales.sku" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
           <option value="">Pilih Part</option>
           <template x-for="item in inventory.filter(i => i.aktif !== false)"><option :value="item.id" x-text="item.id + ' — ' + item.nama"></option></template>
         </select>
       </div>
+      <div class="grid grid-cols-2 gap-4"><div><label class="text-xs text-slate-400 mb-1 block">Customer</label><input type="text" x-model="form.sales.customer" placeholder="Nama customer" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div><div><label class="text-xs text-slate-400 mb-1 block">Tujuan / Kota</label><input type="text" x-model="form.sales.destination" placeholder="Surabaya" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div></div>
       <div><label class="text-xs text-slate-400 mb-1 block">Jumlah Terjual</label><input type="number" x-model.number="form.sales.jumlah" min="1" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"></div>
     </div>
     <div class="flex gap-2 mt-6">

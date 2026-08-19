@@ -23,7 +23,6 @@ const API = {
     data.settings.appsScriptUrl = newUrl;
     if (!data.settings.kursCNYtoIDR) data.settings.kursCNYtoIDR = 16500;
     if (!data.settings.safetyStockDays) data.settings.safetyStockDays = 7;
-    if (!data.settings.maxStockDays) data.settings.maxStockDays = 60;
     this.save(data);
     // Sync dari Sheets
     this.syncFromRemote();
@@ -76,7 +75,7 @@ const API = {
       if (json && json.status === 'ok') {
         var data = this.load();
         var remoteInv = normalizeRows(json.inventory || []);
-        var remoteSales = enrichSales(normalizeRows(json.sales || []), remoteInv);
+        var remoteSales = normalizeSales(normalizeRows(json.sales || []), remoteInv);
         if (remoteInv.length) data.inventory = remoteInv;
         if (remoteSales.length) data.sales = remoteSales;
         if ((json.purchaseOrders || []).length) data.purchaseOrders = normalizePOs(json.purchaseOrders, data.inventory);
@@ -215,17 +214,14 @@ function normalizeRows(rows) {
   });
 }
 
-function enrichSales(rows, inventory) {
-  var map = {};
-  (inventory || []).forEach(function(i) { map[i.id] = i; });
-  return (rows || []).map(function(s) {
-    var item = map[s.sku];
-    if (item) {
-      if (!s.brand) s.brand = item.brand;
-      if (!s.warehouse) s.warehouse = item.warehouse;
-    }
-    s.jumlah = Number(s.jumlah) || 0;
-    s.hargaJual = Number(s.hargaJual) || (item ? Number(item.hargaJual) || 0 : 0);
+function normalizeSales(rows, inventory) {
+  return (rows || []).map(function(s, idx) {
+    var item = (inventory || []).find(function(i){ return i.id === s.sku || i.sku === s.sku; });
+    if (!s.soNumber) s.soNumber = s.noSalesOrder || s.no_so || s.salesOrder || ('SO-' + String(s.tanggal || NLK.today()).replace(/-/g,'') + '-' + String(idx+1).padStart(3,'0'));
+    if (!s.customer) s.customer = s.customerName || s.pelanggan || '-';
+    if (!s.destination) s.destination = s.tujuan || (item ? item.warehouse : '-');
+    if (!s.brand && item) s.brand = item.brand;
+    if (!s.warehouse && item) s.warehouse = item.warehouse;
     return s;
   });
 }
