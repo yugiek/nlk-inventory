@@ -59,3 +59,23 @@ Reorder Point = (Avg penjualan/hari × Lead Time) + (Avg × Safety Stock Days)
 Recommended Qty = [Avg × (Lead Time + Safety)] - Stok - PO_in_transit
 ```
 Default safety stock: 7 hari
+
+## Upgrade — Inventory Intelligence
+
+Versi ini menambahkan engine analitik terpisah di `js/analytics.js`:
+- Average Daily Sales menggunakan full 30-day window (tidak hanya hari yang memiliki transaksi)
+- Stock Coverage / Days of Stock
+- Safety Stock
+- Reorder Point
+- Incoming PO quantity
+- Projected Stock-out date
+- Recommended Order Quantity
+- Inventory Health Score
+- Dead Stock 90 hari
+- Gross Profit & Gross Margin estimasi
+- MoM / period growth
+- Dashboard Action Center untuk Stock-out Risk dan Dead Stock
+- Target Stock Coverage configurable dari Settings
+
+### Catatan
+Gross Profit pada versi ini adalah estimasi berdasarkan HPP/harga beli CNY yang tersimpan pada master inventory saat ini. Untuk accounting-grade historical margin, langkah berikutnya adalah menyimpan `hargaBeli` sebagai snapshot pada setiap transaksi penjualan.

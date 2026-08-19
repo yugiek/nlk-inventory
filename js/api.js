@@ -23,6 +23,7 @@ const API = {
     data.settings.appsScriptUrl = newUrl;
     if (!data.settings.kursCNYtoIDR) data.settings.kursCNYtoIDR = 16500;
     if (!data.settings.safetyStockDays) data.settings.safetyStockDays = 7;
+    if (!data.settings.maxStockDays) data.settings.maxStockDays = 60;
     this.save(data);
     // Sync dari Sheets
     this.syncFromRemote();
@@ -75,7 +76,7 @@ const API = {
       if (json && json.status === 'ok') {
         var data = this.load();
         var remoteInv = normalizeRows(json.inventory || []);
-        var remoteSales = normalizeRows(json.sales || []);
+        var remoteSales = enrichSales(normalizeRows(json.sales || []), remoteInv);
         if (remoteInv.length) data.inventory = remoteInv;
         if (remoteSales.length) data.sales = remoteSales;
         if ((json.purchaseOrders || []).length) data.purchaseOrders = normalizePOs(json.purchaseOrders, data.inventory);
@@ -211,6 +212,21 @@ function normalizeRows(rows) {
       out[k] = v;
     }
     return out;
+  });
+}
+
+function enrichSales(rows, inventory) {
+  var map = {};
+  (inventory || []).forEach(function(i) { map[i.id] = i; });
+  return (rows || []).map(function(s) {
+    var item = map[s.sku];
+    if (item) {
+      if (!s.brand) s.brand = item.brand;
+      if (!s.warehouse) s.warehouse = item.warehouse;
+    }
+    s.jumlah = Number(s.jumlah) || 0;
+    s.hargaJual = Number(s.hargaJual) || (item ? Number(item.hargaJual) || 0 : 0);
+    return s;
   });
 }
 

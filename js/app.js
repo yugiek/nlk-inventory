@@ -30,6 +30,7 @@ document.addEventListener('alpine:init', function() {
 
       chartInstances: {},
       salesAvgMap: {},
+      analyticsCache: {},
 
       // ==== LIFECYCLE ====
       init() {
@@ -57,7 +58,13 @@ document.addEventListener('alpine:init', function() {
       },
 
       rebuildAvgMap() {
-        this.salesAvgMap = NLK.buildSalesMap(this.sales, 30);
+        var self = this;
+        this.salesAvgMap = {};
+        this.inventory.forEach(function(item) {
+          self.salesAvgMap[item.id] = NLK.analytics.avgDailySales(self.sales, item.id, 30, {
+            brand: self.selectedBrand, warehouse: self.selectedWarehouse
+          });
+        });
       },
 
       toggleSidebar() {
@@ -184,16 +191,43 @@ document.addEventListener('alpine:init', function() {
         });
       },
 
-      // ==== ANALYSIS HELPERS ====
-      itemAvg(item) { return item && item.id ? (this.salesAvgMap[item.id] || 0) : 0; },
-      itemStatus(item) { return NLK.stockStatus(item, this.itemAvg(item)); },
-      itemDaysLeft(item) { var avg = this.itemAvg(item); return avg > 0 ? Math.floor(item.stok / avg) : Infinity; },
-      itemReorderPoint(item) { var avg = this.itemAvg(item); return Math.ceil(avg * (item.leadTimeHari || 30) + avg * (this.settings.safetyStockDays || 7)); },
+      // ==== INVENTORY INTELLIGENCE ====
+      itemAvg(item) {
+        return item && item.id ? NLK.analytics.avgDailySales(this.sales, item.id, 30, {
+          brand: this.selectedBrand, warehouse: this.selectedWarehouse
+        }) : 0;
+      },
+      itemIncoming(item) { return NLK.analytics.incomingQty(this.pos, item.id); },
+      itemSafetyStock(item) { return NLK.analytics.safetyStock(this.itemAvg(item), this.settings.safetyStockDays || 7); },
+      itemReorderPoint(item) { return NLK.analytics.reorderPoint(this.itemAvg(item), item.leadTimeHari || 30, this.settings.safetyStockDays || 7); },
+      itemDaysLeft(item) { var avg=this.itemAvg(item); return NLK.analytics.coverageDays(Number(item.stok)||0,avg); },
+      itemProjectedStockout(item) { return NLK.analytics.projectedStockoutDate(Number(item.stok)||0,this.itemAvg(item)); },
       itemReorderQty(item) {
-        var avg = this.itemAvg(item); if (avg <= 0) return 0;
-        var inTransit = this.pos.filter(p => p.status !== 'arrived' && p.status !== 'cancelled').reduce((sum, p) => sum + (p.items || []).filter(i => i.sku === item.id).reduce((s2, i) => s2 + i.qty, 0), 0);
-        var qty = avg * ((item.leadTimeHari || 30) + (this.settings.safetyStockDays || 7)) - item.stok - inTransit;
-        return qty > 0 ? Math.ceil(qty) : 0;
+        return NLK.analytics.recommendedOrder(
+          Number(item.stok)||0, this.itemAvg(item), item.leadTimeHari || 30,
+          this.settings.safetyStockDays || 7, this.itemIncoming(item), this.settings.maxStockDays || 60
+        );
+      },
+      itemStatus(item) {
+        return NLK.analytics.status(Number(item.stok)||0,this.itemAvg(item),item.minStok,item.leadTimeHari||30,this.settings.safetyStockDays||7);
+      },
+      itemCoverageLabel(item) {
+        var d=this.itemDaysLeft(item); return isFinite(d) ? d.toFixed(1)+' hari' : '—';
+      },
+      inventoryHealth() {
+        return NLK.analytics.health(this.inventory,this.sales,this.pos,this.settings,{brand:this.selectedBrand,warehouse:this.selectedWarehouse});
+      },
+      get deadStockItems() {
+        return NLK.analytics.deadStock(this.inventory,this.sales,90,{brand:this.selectedBrand,warehouse:this.selectedWarehouse});
+      },
+      get stockoutRiskList() {
+        var self=this;
+        return this.inventory.filter(function(i){
+          return (self.selectedBrand==='ALL'||i.brand===self.selectedBrand)&&
+                 (self.selectedWarehouse==='ALL'||i.warehouse===self.selectedWarehouse)&&
+                 self.itemStatus(i)==='critical';
+        }).map(function(i){return Object.assign({},i,{avg:self.itemAvg(i),coverage:self.itemDaysLeft(i),incoming:self.itemIncoming(i),rop:self.itemReorderPoint(i),rq:self.itemReorderQty(i),stockout:self.itemProjectedStockout(i)});})
+        .sort(function(a,b){return (a.coverage===Infinity?999999:a.coverage)-(b.coverage===Infinity?999999:b.coverage);});
       },
 
        get stats() {
@@ -215,19 +249,15 @@ document.addEventListener('alpine:init', function() {
        },
 
       get topMoving() {
-        const counts = {}; this.sales.forEach(s => { if (!counts[s.sku]) counts[s.sku] = 0; counts[s.sku] += s.jumlah; });
-        return Object.keys(counts).map(sku => { var item = this.inventory.find(i => i.id === sku); return { sku, nama: item ? item.nama : sku, qty: counts[sku] }; }).sort((a, b) => b.qty - a.qty).slice(0, 5);
-      },
-
-       get activePOs() { return this.pos.filter(p => p.status !== 'arrived' && p.status !== 'cancelled'); },
-       
-       get urgentReorderList() {
-         var self = this;
-         return this.inventory.filter(i => {
-           var matchBrand = self.selectedBrand === 'ALL' || i.brand === self.selectedBrand;
-           var matchWH = self.selectedWarehouse === 'ALL' || i.warehouse === self.selectedWarehouse;
-           return matchBrand && matchWH && self.itemStatus(i) === 'critical';
-         }).sort((a,b) => (a.stok/this.itemAvg(a)) - (b.stok/this.itemAvg(b)));
+        var counts={}, self=this, cutoff=NLK.daysAgo(30);
+        this.sales.forEach(function(s){
+          if(s.tanggal<cutoff) return;
+          if(self.selectedBrand!=='ALL'&&s.brand!==self.selectedBrand) return;
+          if(self.selectedWarehouse!=='ALL'&&s.warehouse!==self.selectedWarehouse) return;
+          counts[s.sku]=(counts[s.sku]||0)+Number(s.jumlah||0);
+        });
+        return Object.keys(counts).map(function(sku){var item=self.inventory.find(i=>i.id===sku);return {sku:sku,nama:item?item.nama:sku,qty:counts[sku]};})
+          .sort(function(a,b){return b.qty-a.qty;}).slice(0,5);
        },
 
        warehouseStats(wh) {
@@ -299,10 +329,10 @@ document.addEventListener('alpine:init', function() {
        },
 
       evalSummary() {
-        var self = this;
-        return [{l:'Mingguan', d:7},{l:'Bulanan', d:30},{l:'Kuartal', d:90},{l:'Semester', d:180},{l:'Tahunan', d:365}].map(p => {
-          var cutoff = NLK.daysAgo(p.d), pSales = this.sales.filter(s => s.tanggal >= cutoff), qty = pSales.reduce((s,x)=>s+(x.jumlah||0),0), rev = pSales.reduce((s,x)=>s+(x.jumlah*x.hargaJual),0);
-          return { label: p.l, qty: qty, revenue: rev };
+        var self=this;
+        return [{l:'Mingguan',d:7},{l:'Bulanan',d:30},{l:'Kuartal',d:90},{l:'Semester',d:180},{l:'Tahunan',d:365}].map(function(p){
+          var s=NLK.analytics.periodSummary(self.sales,p.d,{brand:self.selectedBrand,warehouse:self.selectedWarehouse});
+          return {label:p.l,qty:s.qty,revenue:s.revenue};
         });
       },
 
@@ -343,6 +373,30 @@ document.addEventListener('alpine:init', function() {
         rd.top5.forEach(r => rows.push([r.sku, r.nama, r.q, r.r]));
         var csv = rows.map(r => r.join(',')).join('\n'), blob = new Blob(['\ufeff'+csv], {type:'text/csv'}), url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = 'Laporan-NLK-'+rd.periodLabel+'.csv'; a.click();
+      },
+
+      periodSummary(days) {
+        return NLK.analytics.periodSummary(this.sales, days || 30, {brand:this.selectedBrand,warehouse:this.selectedWarehouse});
+      },
+      managementKpis() {
+        var days={mingguan:7,bulanan:30,kuartal:90,semester:180,tahunan:365}[this.evalPeriod]||30;
+        var f={brand:this.selectedBrand,warehouse:this.selectedWarehouse};
+        var ps=NLK.analytics.periodSummary(this.sales,days,f);
+        var filteredInv=this.inventory.filter(i=>(this.selectedBrand==='ALL'||i.brand===this.selectedBrand)&&(this.selectedWarehouse==='ALL'||i.warehouse===this.selectedWarehouse));
+        var gp=NLK.analytics.grossProfit(NLK.analytics.salesInWindow(this.sales,days,f),filteredInv,this.settings.kursCNYtoIDR||16500);
+        var revenue=ps.revenue;
+        return {revenue:revenue,qty:ps.qty,grossProfit:gp,margin:revenue?gp/revenue*100:0,revenueGrowth:ps.revenueGrowth,qtyGrowth:ps.qtyGrowth,health:this.inventoryHealth(),deadValue:this.deadStockItems.reduce((a,i)=>a+(Number(i.stok)||0)*(Number(i.hargaBeliCNY)||0)*(this.settings.kursCNYtoIDR||16500),0),stockoutRisk:this.stockoutRiskList.length};
+      },
+      openModal(name,item) {
+        this.showModal[name]=true;
+        if(name==='inventory') this.form.inventory=item?Object.assign({},item):{id:'',brand:this.selectedBrand==='ALL'?'NLK':this.selectedBrand,warehouse:this.selectedWarehouse==='ALL'?'Surabaya':this.selectedWarehouse,aktif:true,stok:0,minStok:5,leadTimeHari:30};
+        if(name==='sales') this.form.sales={id:'',tanggal:NLK.today(),sku:'',jumlah:1};
+        if(name==='po') { this.poDraft={supplierId:'',tanggal:NLK.today(),estimasiTiba:NLK.addDays(NLK.today(),30),items:[],catatan:''}; this.poNewItem={sku:'',qty:1}; }
+      },
+      closeModal(name) { this.showModal[name]=false; },
+      get activePOValue() {
+        var kurs=this.settings.kursCNYtoIDR||16500;
+        return this.activePOs.reduce((a,p)=>a+(p.items||[]).reduce((s,i)=>s+Number(i.qty||0)*Number(i.hargaBeliCNY||0),0)*kurs,0);
       },
 
       // ==== MODAL ACTIONS ====

@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="js/utils.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.0/dist/cdn.min.js"></script>
@@ -192,6 +193,83 @@
         <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
           <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stok Kritis</p>
           <p class="text-xl font-bold text-red-400 mt-1" x-text="stats.lowStock"></p>
+        </div>
+      </div>
+
+      <!-- ===== INVENTORY INTELLIGENCE ===== -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Inventory Health</p>
+          <div class="flex items-end gap-2 mt-1">
+            <p class="text-2xl font-black text-white" x-text="inventoryHealth().score"></p>
+            <span class="text-xs text-slate-500 mb-1">/ 100</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Availability <span class="text-emerald-400" x-text="inventoryHealth().availability + '%'"></span></p>
+        </div>
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stock-out Risk</p>
+          <p class="text-2xl font-black text-red-400 mt-1" x-text="stockoutRiskList.length"></p>
+          <p class="text-[10px] text-slate-500 mt-1">SKU perlu tindakan</p>
+        </div>
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Dead Stock</p>
+          <p class="text-lg font-black text-orange-400 mt-1" x-text="fmtRp(managementKpis().deadValue)"></p>
+          <p class="text-[10px] text-slate-500 mt-1"><span x-text="deadStockItems.length"></span> SKU tanpa sales 90 hari</p>
+        </div>
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Gross Margin</p>
+          <p class="text-2xl font-black text-emerald-400 mt-1" x-text="managementKpis().margin.toFixed(1) + '%'"></p>
+          <p class="text-[10px] text-slate-500 mt-1">Estimasi berdasarkan HPP saat ini</p>
+        </div>
+      </div>
+
+      <!-- Action Center -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900 rounded-xl border border-red-500/20 p-5">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-red-400 flex items-center gap-2"><i class="fas fa-triangle-exclamation"></i> Stock-out Risk</h3>
+              <p class="text-[10px] text-slate-500 mt-1">Prioritas berdasarkan coverage stok</p>
+            </div>
+            <button @click="setPage('reorder')" class="text-[10px] bg-red-600 hover:bg-red-700 px-2.5 py-1.5 rounded-lg font-bold">Kelola</button>
+          </div>
+          <div class="space-y-2">
+            <template x-for="item in stockoutRiskList.slice(0,4)" :key="item.id">
+              <div class="flex items-center gap-3 bg-slate-800/50 border border-slate-800 rounded-lg p-3">
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-bold text-slate-200 truncate" x-text="item.nama"></p>
+                  <p class="text-[10px] text-slate-500"><span x-text="item.id"></span> · <span x-text="item.stok"></span> pcs · Avg <span x-text="item.avg.toFixed(1)"></span>/hari</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs font-black text-red-400" x-text="item.coverage === Infinity ? '—' : item.coverage.toFixed(1) + ' hari'"></p>
+                  <p class="text-[9px] text-yellow-400" x-text="'Order ' + item.rq + ' pcs'"></p>
+                </div>
+              </div>
+            </template>
+            <p x-show="stockoutRiskList.length===0" class="text-center text-xs text-slate-500 py-4">Tidak ada risiko stock-out.</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-xl border border-orange-500/20 p-5">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-orange-400 flex items-center gap-2"><i class="fas fa-box-open"></i> Dead Stock</h3>
+              <p class="text-[10px] text-slate-500 mt-1">Stok ada tetapi tidak terjual selama 90 hari</p>
+            </div>
+            <span class="text-xs font-bold text-orange-400" x-text="deadStockItems.length + ' SKU'"></span>
+          </div>
+          <div class="space-y-2">
+            <template x-for="item in deadStockItems.slice(0,4)" :key="item.id">
+              <div class="flex justify-between items-center bg-slate-800/50 border border-slate-800 rounded-lg p-3">
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-slate-200 truncate" x-text="item.nama"></p>
+                  <p class="text-[10px] text-slate-500"><span x-text="item.id"></span> · <span x-text="item.stok"></span> pcs</p>
+                </div>
+                <p class="text-xs font-bold text-orange-400" x-text="fmtRp(item.stok * item.hargaBeliCNY * (settings.kursCNYtoIDR||16500))"></p>
+              </div>
+            </template>
+            <p x-show="deadStockItems.length===0" class="text-center text-xs text-slate-500 py-4">Tidak ada dead stock.</p>
+          </div>
         </div>
       </div>
 
@@ -536,6 +614,10 @@
             <div>
               <label class="text-xs text-slate-400 mb-1 block">Safety Stock (hari)</label>
               <input type="number" x-model.number="settings.safetyStockDays" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Target Stock Coverage (hari)</label>
+              <input type="number" x-model.number="settings.maxStockDays" class="w-full bg-slate-800 border border-slate-700 text-slate-100 p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500">
             </div>
           </div>
         </div>

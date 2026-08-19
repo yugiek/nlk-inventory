@@ -92,20 +92,30 @@ NLK.statusBg = function(s) {
 };
 
 NLK.parseCSV = function(text) {
-  var lines = text.split('\n');
-  var result = [];
-  var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/^["']|["']$/g, ''); });
-  for (var i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    var currentline = lines[i].split(',');
-    var obj = {};
-    for (var j = 0; j < headers.length; j++) {
-      var val = (currentline[j] || '').trim().replace(/^["']|["']$/g, '');
-      obj[headers[j]] = val;
+  // CSV parser sederhana yang tetap menangani koma di dalam tanda kutip.
+  var rows = [], row = [], field = '', quoted = false;
+  for (var i=0;i<text.length;i++) {
+    var ch=text[i], next=text[i+1];
+    if (ch === '"' && quoted && next === '"') { field += '"'; i++; continue; }
+    if (ch === '"') { quoted=!quoted; continue; }
+    if (ch === ',' && !quoted) { row.push(field.trim()); field=''; continue; }
+    if ((ch === '\\n' || ch === '\\r') && !quoted) {
+      if (ch === '\\r' && next === '\\n') i++;
+      row.push(field.trim()); field='';
+      if (row.some(function(v){return v!=='';})) rows.push(row);
+      row=[]; continue;
     }
-    result.push(obj);
+    field += ch;
   }
-  return result;
+  row.push(field.trim());
+  if (row.some(function(v){return v!=='';})) rows.push(row);
+  if (!rows.length) return [];
+  var headers=rows[0].map(function(h){return h.replace(/^['"]|['"]$/g,'').trim();});
+  return rows.slice(1).map(function(cols){
+    var obj={};
+    headers.forEach(function(h,j){obj[h]=(cols[j]||'').replace(/^['"]|['"]$/g,'').trim();});
+    return obj;
+  });
 };
 
 // Generate 150 Dummy Inventory Items
@@ -251,6 +261,7 @@ NLK.SEED = {
   settings: {
     kursCNYtoIDR: 16500,
     safetyStockDays: 7,
+    maxStockDays: 60,
     appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwsikqVD516dY_QVIrwAbwOHIXgyuNFe_L4rhZzA6xrsUM97M-VAx8lgQVPd5uC7cSCpw/exec'
   }
 };
