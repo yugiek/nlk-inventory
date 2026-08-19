@@ -338,9 +338,22 @@ document.addEventListener('alpine:init', function() {
       evalSummary() {
         var self = this;
         return [{l:'Mingguan', d:7},{l:'Bulanan', d:30},{l:'Kuartal', d:90},{l:'Semester', d:180},{l:'Tahunan', d:365}].map(p => {
-          var cutoff = NLK.daysAgo(p.d), pSales = this.sales.filter(s => s.tanggal >= cutoff), qty = pSales.reduce((s,x)=>s+(x.jumlah||0),0), rev = pSales.reduce((s,x)=>s+(x.jumlah*x.hargaJual),0);
-          return { label: p.l, qty: qty, revenue: rev };
+          var res = self.periodSummary(p.d);
+          return { label: p.l, qty: res.qty, revenue: res.revenue };
         });
+      },
+
+      periodSummary(days) {
+        var cutoff = NLK.daysAgo(days);
+        var pSales = this.sales.filter(s => {
+          var matchDate = s.tanggal >= cutoff;
+          var matchBrand = this.selectedBrand === 'ALL' || s.brand === this.selectedBrand;
+          var matchWH = this.selectedWarehouse === 'ALL' || s.warehouse === this.selectedWarehouse;
+          return matchDate && matchBrand && matchWH;
+        });
+        var qty = pSales.reduce((s, x) => s + (Number(x.jumlah) || 0), 0);
+        var rev = pSales.reduce((s, x) => s + (Number(x.jumlah) * Number(x.hargaJual)), 0);
+        return { qty: qty, revenue: rev };
       },
 
       // ==== REPORT LOGIC ====
