@@ -119,28 +119,29 @@ function generate150DummyParts() {
     var wh = warehouses[i % warehouses.length];
     var id = brand + '-' + String(1000 + i);
     var nama = '[' + brand + '] ' + cat + ' Part Model ' + (100 + i);
-    // Bikin beberapa item stok kritis/rendah untuk testing alert reorder
-    var stok = (i % 7 === 0) ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 80) + 10;
-    var minStok = Math.floor(Math.random() * 15) + 8;
-    var cny = Math.floor(Math.random() * 200) + 15;
-    var jual = cny * 16500 * 1.4;
-    jual = Math.round(jual / 5000) * 5000;
-    parts.push({
-      id: id,
-      sku: id,
-      brand: brand,
-      warehouse: wh,
-      nama: nama,
-      kategori: cat,
-      stok: stok,
-      minStok: minStok,
-      hargaBeliCNY: cny,
-      hargaJual: jual,
-      lokasiRak: racks[i % racks.length] + '-' + (i % 9 + 1),
-      leadTimeHari: 25 + (i % 4) * 5,
-      aktif: true,
-      badStock: 0, bufferPct: 15, targetStockMonths: 1
-    });
+     // Bikin beberapa item stok kritis/rendah untuk testing alert reorder
+     var stok = (i % 7 === 0) ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 80) + 10;
+     var badStk = (i % 19 === 0) ? Math.floor(Math.random() * 3) + 1 : 0;
+     var minStok = Math.floor(Math.random() * 15) + 8;
+     var cny = Math.floor(Math.random() * 200) + 15;
+     var jual = cny * 16500 * 1.4;
+     jual = Math.round(jual / 5000) * 5000;
+     parts.push({
+       id: id,
+       sku: id,
+       brand: brand,
+       warehouse: wh,
+       nama: nama,
+       kategori: cat,
+       stok: stok,
+       minStok: minStok,
+       hargaBeliCNY: cny,
+       hargaJual: jual,
+       lokasiRak: racks[i % racks.length] + '-' + (i % 9 + 1),
+       leadTimeHari: 25 + (i % 4) * 5,
+       aktif: true,
+       badStock: badStk, bufferPct: 15, targetStockMonths: 1
+     });
   }
   return parts;
 }

@@ -2,37 +2,42 @@ if (typeof window.NLK === 'undefined') { window.NLK = {}; }
 var NLK = window.NLK;
 
 NLK.analytics = {
-  salesForSku(sales, sku, days) {
-    var cutoff = NLK.daysAgo(days || 90);
-    return (sales || []).filter(function(s){ return s.sku === sku && s.tanggal >= cutoff; });
+  // Pre-aggregate sales by SKU for performance
+  buildSalesMap(sales) {
+    var map = {};
+    (sales || []).forEach(function(s) {
+      if (!map[s.sku]) map[s.sku] = [];
+      map[s.sku].push(s);
+    });
+    return map;
   },
-  monthlyDemand(sales, sku, months) {
+  salesForSku(salesMap, sku, days) {
+    var cutoff = NLK.daysAgo(days || 90);
+    return (salesMap[sku] || []).filter(function(s){ return s.tanggal >= cutoff; });
+  },
+  monthlyDemand(salesMap, sku, months) {
     months = months || 3;
     var cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     var cutoffStr = cutoff.toISOString().slice(0,10);
-    var total = (sales || []).filter(function(s){ return s.sku === sku && s.tanggal >= cutoffStr; })
+    var total = (salesMap[sku] || []).filter(function(s){ return s.tanggal >= cutoffStr; })
       .reduce(function(sum,s){ return sum + Number(s.jumlah || 0); },0);
     return total / months;
   },
-  avgDaily(sales, sku, days) {
+  avgDaily(salesMap, sku, days) {
     days = days || 30;
     var cutoff = NLK.daysAgo(days);
-    var total = (sales || []).filter(function(s){ return s.sku === sku && s.tanggal >= cutoff; })
+    var total = (salesMap[sku] || []).filter(function(s){ return s.tanggal >= cutoff; })
       .reduce(function(sum,s){ return sum + Number(s.jumlah || 0); },0);
     return total / days;
   },
-  movement(sales, sku, months) {
-    var demand = this.monthlyDemand(sales, sku, months || 3);
-    var all = (sales || []).filter(function(s){ return s.sku === sku; });
+  movement(salesMap, sku, monthlyDemandValue) {
+    var demand = monthlyDemandValue;
+    var all = (salesMap[sku] || []);
     if (!all.length || demand <= 0) return 'dead';
-    var values = {};
-    all.forEach(function(s){ values[s.tanggal] = (values[s.tanggal] || 0) + Number(s.jumlah || 0); });
-    var lastSale = Object.keys(values).sort().pop();
+    var lastSale = all.reduce(function(latest, s) {
+      return (!latest || s.tanggal > latest) ? s.tanggal : latest;
+    }, null);
     if (lastSale && ((new Date() - new Date(lastSale)) / 86400000) >= 90) return 'dead';
-    // Relative thresholds: suitable for mixed SKU portfolios and avoids one hard-coded qty.
-    var demands = {};
-    var skuSet = {};
-    all.forEach(function(s){ skuSet[s.sku] = true; });
     return demand >= 100 ? 'fast' : demand >= 30 ? 'medium' : 'slow';
   },
   incomingQty(pos, sku) {

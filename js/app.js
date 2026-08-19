@@ -30,17 +30,20 @@ document.addEventListener('alpine:init', function() {
 
       chartInstances: {},
       salesAvgMap: {},
+      analyticsCache: {},
 
       // ==== LIFECYCLE ====
       init() {
         NLK.api.init();
         this.data = NLK.api.load();
         this.rebuildAvgMap();
+        this.rebuildAnalyticsCache();
         
         var self = this;
         window.addEventListener('nlk-data-changed', function() {
           self.data = NLK.api.load();
           self.rebuildAvgMap();
+          self.rebuildAnalyticsCache();
           if (self.page === 'dashboard') setTimeout(function() { self.renderEvalCharts(); }, 50);
           if (self.page === 'laporan') setTimeout(function() { self.renderReportCharts(); }, 50);
         });
@@ -58,6 +61,21 @@ document.addEventListener('alpine:init', function() {
 
       rebuildAvgMap() {
         this.salesAvgMap = NLK.buildSalesMap(this.sales, 30);
+        this.salesMap = NLK.analytics.buildSalesMap(this.sales);
+        this.rebuildAnalyticsCache();
+      },
+
+      rebuildAnalyticsCache() {
+        var self = this;
+        this.analyticsCache = {};
+        this.inventory.forEach(function(item) {
+          var demand = NLK.analytics.monthlyDemand(self.salesMap, item.id, 3);
+          var movement = NLK.analytics.movement(self.salesMap, item.id, demand);
+          var incoming = NLK.analytics.incomingQty(self.pos, item.id);
+          var ss = NLK.analytics.safetyStock(item, self.settings, demand);
+          var rp = NLK.analytics.reorderPoint(item, self.settings, demand);
+          self.analyticsCache[item.id] = { demand: demand, movement: movement, incoming: incoming, ss: ss, rp: rp };
+        });
       },
 
       toggleSidebar() {
@@ -190,14 +208,14 @@ document.addEventListener('alpine:init', function() {
 
       // ==== ANALYSIS HELPERS ====
       itemAvg(item) { return item && item.id ? (this.salesAvgMap[item.id] || 0) : 0; },
-      itemMonthlyDemand(item) { return NLK.analytics.monthlyDemand(this.sales, item.id, 3); },
-      itemSafetyStock(item) { return NLK.analytics.safetyStock(item, this.settings, this.itemMonthlyDemand(item)); },
-      itemReorderPoint(item) { return NLK.analytics.reorderPoint(item, this.settings, this.itemMonthlyDemand(item)); },
+      itemMonthlyDemand(item) { return this.analyticsCache[item.id] ? this.analyticsCache[item.id].demand : 0; },
+      itemSafetyStock(item) { return this.analyticsCache[item.id] ? this.analyticsCache[item.id].ss : 0; },
+      itemReorderPoint(item) { return this.analyticsCache[item.id] ? this.analyticsCache[item.id].rp : 0; },
       itemTargetStock(item) { return NLK.analytics.targetStock(item, this.settings, this.itemMonthlyDemand(item)); },
-      itemIncoming(item) { return NLK.analytics.incomingQty(this.pos, item.id); },
+      itemIncoming(item) { return this.analyticsCache[item.id] ? this.analyticsCache[item.id].incoming : 0; },
       itemAvailable(item) { return Math.max(0, Number(item.stok || 0) - Number(item.badStock || 0)); },
       itemDaysLeft(item) { var avg = this.itemAvg(item); return avg > 0 ? Math.floor(this.itemAvailable(item) / avg) : Infinity; },
-      itemMovement(item) { return NLK.analytics.movement(this.sales, item.id, 3); },
+      itemMovement(item) { return this.analyticsCache[item.id] ? this.analyticsCache[item.id].movement : 'dead'; },
       itemStatus(item) {
         var available = this.itemAvailable(item), ss = this.itemSafetyStock(item), rp = this.itemReorderPoint(item), days = this.itemDaysLeft(item);
         if (Number(item.badStock || 0) > 0 && available <= 0) return 'bad';
