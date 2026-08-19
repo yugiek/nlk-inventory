@@ -138,7 +138,7 @@ function jsonResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// === SEED DATA: 150 Item, 365 Hari Sales, 4 PO ===
+// === SEED DATA: 150 Item, 730 Hari Sales, 4 PO ===
 
 function seedAllData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -159,22 +159,33 @@ function seedAllData() {
 function generateInventory() {
   var cats = ['Engine', 'Transmission', 'Suspension', 'Electrical', 'Filter', 'Brake', 'Bearing', 'Gasket', 'Belt', 'Body'];
   var racks = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'E1', 'E2', 'F1', 'F2'];
+  var warehouses = ['Surabaya', 'Balikpapan', 'Banjarmasin', 'Makassar'];
+  var brands = ['NLK', 'FCC'];
   var items = [];
 
   for (var i = 1; i <= 150; i++) {
     var cat = cats[i % cats.length];
+    var brand = brands[i % brands.length];
+    var wh = warehouses[i % warehouses.length];
+    var id = brand + '-' + (1000 + i);
+    var nama = '[' + brand + '] ' + cat + ' Part Model ' + (100 + i);
     var stok = Math.floor(Math.random() * 80) + 2;
     var minStok = Math.floor(Math.random() * 15) + 5;
     var cny = Math.floor(Math.random() * 200) + 10;
     var jual = Math.round((cny * 16500 * 1.4) / 5000) * 5000;
     items.push([
-      'NLK-' + (1000 + i),
-      cat + ' Part Model ' + (100 + i),
+      id,
+      nama,
       cat, stok, minStok,
       cny, jual,
       racks[i % racks.length] + '-' + (i % 9 + 1),
       25 + (i % 4) * 5,
-      true
+      true,
+      brand,
+      wh,
+      0, // badStock
+      15, // bufferPct
+      1 // targetStockMonths
     ]);
   }
   return items;
@@ -190,12 +201,12 @@ function seedSales(ss, inventory) {
   var today = new Date();
   // Faktor musiman per bulan (index 0=Jan) dan tren pertumbuhan bisnis
   var season = [0.75, 0.85, 1.15, 1.0, 0.95, 1.05, 0.9, 1.0, 1.1, 1.2, 1.15, 1.3];
-  for (var d = 365; d >= 0; d--) {
+  for (var d = 730; d >= 0; d--) {
     var dateObj = new Date(today);
     dateObj.setDate(today.getDate() - d);
     var dateStr = Utilities.formatDate(dateObj, 'Asia/Jakarta', 'yyyy-MM-dd');
-    var ageRatio = (365 - d) / 365; // 0 (paling lama) → 1 (hari ini)
-    var growth = 0.6 + 0.4 * ageRatio; // bisnis tumbuh mendekati sekarang
+    var ageRatio = (730 - d) / 730; // 0 (paling lama) → 1 (hari ini)
+    var growth = 0.5 + 0.5 * ageRatio; // bisnis tumbuh mendekati sekarang
     var month = dateObj.getMonth();
     var seasonal = season[month];
     var dow = dateObj.getDay();
@@ -207,7 +218,7 @@ function seedSales(ss, inventory) {
       var qty = Math.floor(Math.random() * 4) + 1;
       sheet.appendRow([
         'SALE-' + Math.floor(100000 + Math.random() * 900000),
-        dateStr, item[0], qty, item[5]
+        dateStr, item[0], qty, item[6]
       ]);
     }
   }
